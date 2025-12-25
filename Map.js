@@ -33,10 +33,10 @@ export class Map  {
         const dracoLoader = new DRACOLoader()
         dracoLoader.setDecoderPath('/examples/jsm/libs/draco')
         loader.setDRACOLoader( dracoLoader )
-        const object1 = await loader.loadAsync( "/map-props/house2.glb")
-        const object2 = await loader.loadAsync( "/map-props/house2.glb")
-        const object3 = await loader.loadAsync( "/map-props/house2.glb")
-        const object4 = await loader.loadAsync( "/map-props/house2.glb")
+        const object1 = await loader.loadAsync( "/map_props/house2.glb")
+        const object2 = await loader.loadAsync( "/map_props/house2.glb")
+        const object3 = await loader.loadAsync( "/map_props/house2.glb")
+        const object4 = await loader.loadAsync( "/map_props/house2.glb")
         object1.scene.traverse((child) => {
             if (child.isMesh) {
                 child.material.color.set(0xff0000)

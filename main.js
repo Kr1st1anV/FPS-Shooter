@@ -17,6 +17,7 @@ scene.background = new THREE.Color(0x89cff0)
 const camera = new THREE.PerspectiveCamera( 75, window.innerHeight / window.innerHeight, 0.1, 1000)
 camera.aspect = window.innerWidth / window.innerHeight
 camera.updateProjectionMatrix()
+camera.position.set(0,1000,0)
 
 const renderer = new THREE.WebGLRenderer({ antialias: false, powerPreference: "high-performance" })
 renderer.shadowMap.enabled = true

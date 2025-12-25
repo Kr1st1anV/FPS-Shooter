@@ -1,6 +1,7 @@
 import * as THREE from "three"
 import RAPIER from '@dimforge/rapier3d-compat';
 import { PlayerControls } from "./PlayerControls"
+import { DRACOLoader, GLTFLoader } from "three/examples/jsm/Addons.js";
 
 await RAPIER.init()
 
@@ -24,7 +25,7 @@ export class Player {
         this.controls = new PlayerControls(this.camera, this.scene, this.charMesh)
     }
 
-    buildChar() {
+    async buildChar() {
         const radius = 0.5
         const height = 1.0
         //kinematicPositionBased - RigidBody that can be controlled but not by external forces
@@ -36,13 +37,35 @@ export class Player {
         this.charCollider = this.world.createCollider(this.charColliderDesc, this.charBody)
 
         this.charMesh = new THREE.Mesh(
-            new THREE.CapsuleGeometry(radius, height, 8, 16),
+            new THREE.CapsuleGeometry(radius, height),
             new THREE.MeshStandardMaterial( {color:0xf4fff})
         )
+
         this.scene.add(this.charMesh)
+
+        const loader = new GLTFLoader();
+
+        loader.load(
+            '/gun_models/scene.gltf', 
+            (gltf) => {
+                const gun = gltf.scene;
+                this.charMesh.add(gun)
+                gun.position.set(0.55,-0.1,0)
+            }
+        );
     }
 
-    update(delta, gameActive) {
+    lerpAngle(start, end, t) {
+        let diff = end - start;
+        
+        // Wrap the difference so it's always between -PI and PI
+        while (diff < -Math.PI) diff += Math.PI * 2;
+        while (diff > Math.PI) diff -= Math.PI * 2;
+        
+        return start + diff * t;
+    }
+
+    async update(delta, gameActive) {
         this.gameActive = gameActive
         if (this.lastPosition == this.charMesh.position) {
             document.querySelector('.crosshair').classList.remove('moving');
@@ -98,11 +121,20 @@ export class Player {
             z: currentPosition.z + corrected.z
         })
         this.finalPosition = this.charBody.translation()
-        this.charMesh.position.x = THREE.MathUtils.lerp(this.charMesh.position.x, this.finalPosition.x, 0.8)
-        this.charMesh.position.y = THREE.MathUtils.lerp(this.charMesh.position.y, this.finalPosition.y, 0.8)
-        this.charMesh.position.z = THREE.MathUtils.lerp(this.charMesh.position.z, this.finalPosition.z, 0.8)
-        //this.charMesh.rotation.y = this.camera.rotation.z
+        this.charMesh.position.x = THREE.MathUtils.lerp(this.charMesh.position.x, this.finalPosition.x, 0.7)
+        this.charMesh.position.y = THREE.MathUtils.lerp(this.charMesh.position.y, this.finalPosition.y, 0.7)
+        this.charMesh.position.z = THREE.MathUtils.lerp(this.charMesh.position.z, this.finalPosition.z, 0.7)
 
+        this.gun = this.charMesh.children[0]
+
+        const vectorFromCamera = new THREE.Vector3()
+        this.camera.getWorldDirection(vectorFromCamera)
+        const gunPitch = Math.asin(vectorFromCamera.y)
+        const gunYaw = Math.atan2(-vectorFromCamera.x, -vectorFromCamera.z)
+
+        this.charMesh.rotation.y = this.lerpAngle(this.charMesh.rotation.y, gunYaw, 0.15)
+        this.gun.rotation.x = this.lerpAngle(this.gun.rotation.x, gunPitch, 0.15)
+        //this.gun.rotation.x = this.lerpAngle(this.gun.rotation.x, gunPitch, 0.3)
         this.controls.updateCamera()
     }
 }

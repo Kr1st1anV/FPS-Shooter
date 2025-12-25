@@ -2,12 +2,12 @@ import * as THREE from "three"
 
 export class PlayerControls {
     constructor(camera, scene, player) {
-        this.gameActive = false
+        this.gameActive = true
         this.camera = camera
         this.scene = scene
         this.player = player
         
-        this.defaultKeys = {w: false, s: false, a: false, d:false, space:false, shift:false}
+        this.defaultKeys = {w: false, s: false, a: false, d:false, space:false, shift:false, scroll: 1100}
 
         this.keys = this.defaultKeys
         
@@ -39,11 +39,15 @@ export class PlayerControls {
                 this.cameraRotation.phi -= event.movementY * sensitivity;
             }
         });
+        document.addEventListener("wheel", (e) => {
+            this.keys.scroll += 2 * e.deltaY
+        })
     }
 
     updateCamera() {
             const cameraOffset = new THREE.Vector3();
-            const distance = 4 // Distance from player
+            this.keys.scroll = Math.min(Math.max(100, this.keys.scroll), 1100)
+            const distance = this.keys.scroll * 5.5 / 1100 // Distance from player
             if (this.cameraRotation.phi < 0.1) this.cameraRotation.phi = Math.max(this.cameraRotation.phi, 0.1)
             if (this.cameraRotation.phi > (- 0.1 + 7 * Math.PI / 12 )) this.cameraRotation.phi =  Math.min(this.cameraRotation.phi, -0.1 + 7 * Math.PI / 12)
             // 1. Calculate the offset using Spherical Coordinates
