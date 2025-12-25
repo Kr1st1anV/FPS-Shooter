@@ -11,9 +11,13 @@ export class Player {
         this.camera = camera
         this.scene = scene
         this.world = world
-        this.controller = this.world.createCharacterController(0.01)
-        this.controller.enableSnapToGround(0.5)
-        this.controller.setMaxSlopeClimbAngle(Math.PI / 3);
+        this.controller = this.world.createCharacterController(0.05)
+        this.controller.setApplyImpulsesToDynamicBodies(false);
+        this.controller.setCharacterMass(1.0);
+        // Ensure this isn't too small
+        this.controller.setOffset(0.1);
+        this.controller.enableSnapToGround(0.2)
+        this.controller.setMaxSlopeClimbAngle(Math.PI / 4);
 
         this.jumpStrength = 12.0
         this.gravityConstant = -30
@@ -38,8 +42,9 @@ export class Player {
 
         this.charMesh = new THREE.Mesh(
             new THREE.CapsuleGeometry(radius, height),
-            new THREE.MeshStandardMaterial( {color:0xf4fff})
+            new THREE.MeshLambertMaterial( {color:0xf4fff})
         )
+        this.charMesh.frustumCulled = false;
 
         this.scene.add(this.charMesh)
 
@@ -50,7 +55,9 @@ export class Player {
             (gltf) => {
                 const gun = gltf.scene;
                 this.charMesh.add(gun)
-                gun.position.set(0.55,-0.1,0)
+                gun.position.set(0.45,-0.1,0)
+                gun.material = new THREE.MeshPhongMaterial( {color: 0x00aa00} )
+                gun.frustumCulled = false;
             }
         );
     }
@@ -125,6 +132,7 @@ export class Player {
         this.charMesh.position.y = THREE.MathUtils.lerp(this.charMesh.position.y, this.finalPosition.y, 0.7)
         this.charMesh.position.z = THREE.MathUtils.lerp(this.charMesh.position.z, this.finalPosition.z, 0.7)
 
+        // //Gun Rotation
         this.gun = this.charMesh.children[0]
 
         const vectorFromCamera = new THREE.Vector3()
@@ -134,7 +142,6 @@ export class Player {
 
         this.charMesh.rotation.y = this.lerpAngle(this.charMesh.rotation.y, gunYaw, 0.15)
         this.gun.rotation.x = this.lerpAngle(this.gun.rotation.x, gunPitch, 0.15)
-        //this.gun.rotation.x = this.lerpAngle(this.gun.rotation.x, gunPitch, 0.3)
         this.controls.updateCamera()
     }
 }

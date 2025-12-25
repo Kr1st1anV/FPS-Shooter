@@ -19,6 +19,8 @@ export class PlayerControls {
     controls() {
         document.addEventListener("keydown", (e) => {
             if (this.gameActive) {
+                if (e.ctrlKey || e.code === "ControlLeft") e.preventDefault()
+                if (e.ctrlKey || e.code === "ShiftLeft") e.preventDefault()
                 if(e.code == "Space") this.keys.space = true
                 if (e.code == "ShiftLeft") this.keys.shift = true
                 else this.keys[e.key.toLowerCase()] = true
@@ -48,11 +50,16 @@ export class PlayerControls {
             const cameraOffset = new THREE.Vector3();
             this.keys.scroll = Math.min(Math.max(100, this.keys.scroll), 1100)
             const distance = this.keys.scroll * 5.5 / 1100 // Distance from player
+            if (distance <= 1.5) {
+                this.player.layers.set(1)
+            } else {
+                this.player.layers.set(0)
+            }
             if (this.cameraRotation.phi < 0.1) this.cameraRotation.phi = Math.max(this.cameraRotation.phi, 0.1)
             if (this.cameraRotation.phi > (- 0.1 + 7 * Math.PI / 12 )) this.cameraRotation.phi =  Math.min(this.cameraRotation.phi, -0.1 + 7 * Math.PI / 12)
             // 1. Calculate the offset using Spherical Coordinates
-            cameraOffset.x = distance * Math.sin(this.cameraRotation.phi) * Math.sin(this.cameraRotation.theta);
-            cameraOffset.y = distance * Math.cos(this.cameraRotation.phi);
+            cameraOffset.x = distance * Math.sin(this.cameraRotation.phi) * Math.sin(this.cameraRotation.theta)
+            cameraOffset.y = distance * Math.cos(this.cameraRotation.phi) - 0.06
             cameraOffset.z = distance * Math.sin(this.cameraRotation.phi) * Math.cos(this.cameraRotation.theta);
 
             // 2. Set camera position relative to player

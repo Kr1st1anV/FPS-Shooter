@@ -20,8 +20,8 @@ camera.updateProjectionMatrix()
 camera.position.set(0,1000,0)
 
 const renderer = new THREE.WebGLRenderer({ antialias: false, powerPreference: "high-performance" })
-renderer.shadowMap.enabled = true
-renderer.shadowMap.type = THREE.BasicShadowMap
+renderer.shadowMap.enabled = false
+// renderer.shadowMap.type = THREE.BasicShadowMap
 /* Worst to Best Shadow Maps
 * Basic
 * PCF
@@ -29,7 +29,7 @@ renderer.shadowMap.type = THREE.BasicShadowMap
 * VSM
 */
 renderer.setSize(window.innerWidth, window.innerHeight)
-renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5))
 document.body.appendChild(renderer.domElement)
 
 await RAPIER.init()
@@ -39,7 +39,7 @@ var gameActive = false
 const gravity = {x: 0.0, y:-9.81, z:0.0}
 const world = new RAPIER.World(gravity)
 const map = new Map(scene, world)
-let player = new Player(camera, scene, world )
+const player = new Player(camera, scene, world )
 
 
 
@@ -54,6 +54,7 @@ function gameLoop() {
     }
     const delta = clock.getDelta()
     player.update(delta, gameActive)
+    world.timestep = 1/60
     world.step()
     renderer.render( scene, camera)
     stats.end()
@@ -66,7 +67,7 @@ window.addEventListener("resize", () => {
     camera.aspect = window.innerWidth / window.innerHeight
     camera.updateProjectionMatrix()
     renderer.setSize(window.innerWidth, window.innerHeight)
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5))
 })
 
 //Start Game
