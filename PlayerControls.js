@@ -7,7 +7,7 @@ export class PlayerControls {
         this.scene = scene
         this.player = player
         
-        this.defaultKeys = {w: false, s: false, a: false, d:false, space:false, shift:false, scroll: 1100}
+        this.defaultKeys = {w: false, s: false, a: false, d:false, space:false, shift:false, scroll: 1000}
 
         this.keys = this.defaultKeys
         
@@ -48,9 +48,9 @@ export class PlayerControls {
 
     updateCamera() {
             const cameraOffset = new THREE.Vector3();
-            this.keys.scroll = Math.min(Math.max(100, this.keys.scroll), 1100)
-            const distance = this.keys.scroll * 5.5 / 1100 // Distance from player
-            if (distance <= 1.5) {
+            this.keys.scroll = Math.min(Math.max(200, this.keys.scroll), 1000)
+            const distance = this.keys.scroll * 5 / 1000 // Distance from player
+            if (distance <= 2) {
                 this.player.layers.set(1)
             } else {
                 this.player.layers.set(0)

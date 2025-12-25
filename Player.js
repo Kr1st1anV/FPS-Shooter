@@ -140,8 +140,8 @@ export class Player {
         const gunPitch = Math.asin(vectorFromCamera.y)
         const gunYaw = Math.atan2(-vectorFromCamera.x, -vectorFromCamera.z)
 
-        this.charMesh.rotation.y = this.lerpAngle(this.charMesh.rotation.y, gunYaw, 0.15)
-        this.gun.rotation.x = this.lerpAngle(this.gun.rotation.x, gunPitch, 0.15)
+        this.charMesh.rotation.y = this.lerpAngle(this.charMesh.rotation.y, gunYaw, 0.9)
+        this.gun.rotation.x = this.lerpAngle(this.gun.rotation.x, gunPitch, 0.9)
         this.controls.updateCamera()
     }
 }
