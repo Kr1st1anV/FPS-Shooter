@@ -9,7 +9,7 @@ export class Map  {
 
         this.init()
     }
-
+    
     async init() {
         await RAPIER.init()
 
