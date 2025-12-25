@@ -12,6 +12,7 @@ export class Player {
         this.world = world
         this.controller = this.world.createCharacterController(0.01)
         this.controller.enableSnapToGround(0.5)
+        this.controller.setMaxSlopeClimbAngle(Math.PI / 3);
 
         this.jumpStrength = 12.0
         this.gravityConstant = -30
@@ -34,20 +35,21 @@ export class Player {
         this.charColliderDesc = RAPIER.ColliderDesc.capsule(height/2, radius)
         this.charCollider = this.world.createCollider(this.charColliderDesc, this.charBody)
 
-        this.controller = this.world.createCharacterController(0.01);
-        this.controller.enableSnapToGround(0.5);
-
         this.charMesh = new THREE.Mesh(
-            new THREE.CapsuleGeometry(radius, height),
-            new THREE.MeshStandardMaterial( {color:0x00ff00})
+            new THREE.CapsuleGeometry(radius, height, 8, 16),
+            new THREE.MeshStandardMaterial( {color:0xf4fff})
         )
         this.scene.add(this.charMesh)
     }
 
     update(delta, gameActive) {
         this.gameActive = gameActive
+        if (this.lastPosition == this.charMesh.position) {
+            document.querySelector('.crosshair').classList.remove('moving');
+        }
+        this.lastPosition = this.charMesh.position
         let keys = this.controls.update(gameActive)
-        let speed = (keys.shift) ? 10.0 : 5.0
+        let speed = (keys.shift) ? 12.0 : 7.0
         const movement = new THREE.Vector3()
 
         this.camera.getWorldDirection(this.forwardsDirection)
@@ -59,39 +61,26 @@ export class Player {
         const moveRight =  Number(keys.d) - (keys.a)
 
         if (moveForward) {
+            document.querySelector('.crosshair').classList.add('moving');
             movement.x += this.forwardsDirection.x * moveForward
             movement.z += this.forwardsDirection.z * moveForward
         }
 
         if (moveRight) {
+            document.querySelector('.crosshair').classList.add('moving');
             movement.x += this.rightDirection.x * moveRight
             movement.z += this.rightDirection.z * moveRight
         }
-
-        // if (keys.w) {
-        //     movement.x += this.forwardsDirection.x
-        //     movement.z += this.forwardsDirection.z
-        // }
-        // if (keys.s) {
-        //     movement.x -= this.forwardsDirection.x
-        //     movement.z -= this.forwardsDirection.z
-        // }
-        // if (keys.a) {
-        //     movement.x -= this.rightDirection.x
-        //     movement.z -= this.rightDirection.z
-        // }
-        // if (keys.d) {
-        //     movement.x += speed * this.rightDirection.x
-        //     movement.z += speed * this.rightDirection.z
-        // }
 
         movement.normalize().multiplyScalar(speed * delta)
 
         const isGround = this.controller.computedGrounded()
 
         if(isGround && keys.space) {
+            document.querySelector('.crosshair').classList.add('moving');
             this.playerVelocity.y = this.jumpStrength
         } else if (!isGround) {
+            document.querySelector('.crosshair').classList.add('moving');
             this.playerVelocity.y += this.gravityConstant * delta
         } else {
             this.playerVelocity.y = Math.max(0, this.playerVelocity.y)
@@ -109,7 +98,9 @@ export class Player {
             z: currentPosition.z + corrected.z
         })
         this.finalPosition = this.charBody.translation()
-        this.charMesh.position.set(this.finalPosition.x, this.finalPosition.y, this.finalPosition.z)
+        this.charMesh.position.x = THREE.MathUtils.lerp(this.charMesh.position.x, this.finalPosition.x, 0.8)
+        this.charMesh.position.y = THREE.MathUtils.lerp(this.charMesh.position.y, this.finalPosition.y, 0.8)
+        this.charMesh.position.z = THREE.MathUtils.lerp(this.charMesh.position.z, this.finalPosition.z, 0.8)
         //this.charMesh.rotation.y = this.camera.rotation.z
 
         this.controls.updateCamera()

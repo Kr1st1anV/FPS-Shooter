@@ -9,7 +9,7 @@ export class Map  {
 
         this.init()
     }
-    
+
     async init() {
         await RAPIER.init()
 
@@ -17,15 +17,15 @@ export class Map  {
         const sun = new THREE.DirectionalLight(0xffffff, 2)
         sun.position.set(0,150,0)
         sun.target.position.set(0,0,0)
-        sun.castShadow = true
-        sun.shadow.mapSize.width = 512
-        sun.shadow.mapSize.height = 512
-        sun.shadow.camera.near = 1.0
-        sun.shadow.camera.far = 500.0
-        sun.shadow.camera.left = 50
-        sun.shadow.camera.right = -50
-        sun.shadow.camera.top = 50
-        sun.shadow.camera.bottom = -50
+        sun.castShadow = false
+        // sun.shadow.mapSize.width = 512
+        // sun.shadow.mapSize.height = 512
+        // sun.shadow.camera.near = 1.0
+        // sun.shadow.camera.far = 500.0
+        // sun.shadow.camera.left = 50
+        // sun.shadow.camera.right = -50
+        // sun.shadow.camera.top = 50
+        // sun.shadow.camera.bottom = -50
         this.scene.add(sun)
 
         const loader = new GLTFLoader()
@@ -78,11 +78,39 @@ export class Map  {
         this.world.createCollider(groundColliderDesc, groundBody)
 
         //Floor Visual
-        const grass = new THREE.Mesh(
+        const ground = new THREE.Mesh(
             new THREE.BoxGeometry(100,0.2,100),
             new THREE.MeshStandardMaterial({color: 0x00bb00}))
+        //Ramp Visual
+        const ramp = new THREE.Mesh(
+            new THREE.BoxGeometry(5,0.4,8),
+            new THREE.MeshStandardMaterial({color: 0xff8f63}))
+        ramp.rotation.x = Math.PI / 5.5
+        ramp.position.set(0, 4 * Math.sin(Math.PI / 5.5) , 0)
+        //Ramp Collider
+        // Get world-space position, rotation, and scale
+        ramp.updateMatrixWorld(true)
+        const worldPos = new THREE.Vector3();
+        const worldQuat = new THREE.Quaternion();
+        const worldScale = new THREE.Vector3();
+        ramp.matrixWorld.decompose(worldPos, worldQuat, worldScale);
 
-        this.scene.add(grass)
+        // 1. Create Body at the mesh's position and rotation
+        const bodyDesc = RAPIER.RigidBodyDesc.fixed()
+            .setTranslation(worldPos.x, worldPos.y, worldPos.z)
+            .setRotation(worldQuat); // Rapier accepts Quaternions directly
+
+        const body = this.world.createRigidBody(bodyDesc);
+
+        // 2. Handle Scaling manually in the Collider
+        // If it's a cuboid (box) of size 1,1,1:
+        const scaledWidth = 5 * worldScale.x;
+        const scaledHeight = 0.4 * worldScale.y;
+        const scaledDepth = 8 * worldScale.z;
+
+        const colliderDesc = RAPIER.ColliderDesc.cuboid(scaledWidth/2, scaledHeight/2, scaledDepth/2);
+        this.world.createCollider(colliderDesc, body);
+        this.scene.add(ground,ramp)
     }
 
     update() {

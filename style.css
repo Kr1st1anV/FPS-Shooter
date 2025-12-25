@@ -1,0 +1,67 @@
+:root {
+    --crosshair-color: #00ff00; /* Classic Valorant Green */
+    --crosshair-thickness: 2px;
+    --crosshair-length: 8px;
+    --crosshair-gap: 4px;       /* Space in the center */
+    --crosshair-outline: 1px solid rgba(0, 0, 0, 0.5);
+}
+body {margin: 0;}
+
+.crosshair-wrapper {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    pointer-events: none; /* Ensures the crosshair doesn't block clicks */
+    z-index: 9999;
+}
+
+.crosshair {
+    position: relative;
+    width: 0;
+    height: 0;
+}
+
+.line {
+    position: absolute;
+    background-color: var(--crosshair-color);
+    outline: var(--crosshair-outline);
+}
+
+/* Vertical Lines */
+.top, .bottom {
+    width: var(--crosshair-thickness);
+    height: var(--crosshair-length);
+    left: calc(var(--crosshair-thickness) / -2);
+}
+
+.top { bottom: var(--crosshair-gap); }
+.bottom { top: var(--crosshair-gap); }
+
+/* Horizontal Lines */
+.left, .right {
+    height: var(--crosshair-thickness);
+    width: var(--crosshair-length);
+    top: calc(var(--crosshair-thickness) / -2);
+}
+
+.left { right: var(--crosshair-gap); }
+.right { left: var(--crosshair-gap); }
+
+/* Center Dot */
+.dot {
+    position: absolute;
+    width: 2px;
+    height: 2px;
+    background-color: var(--crosshair-color);
+    left: -1px;
+    top: -1px;
+    outline: var(--crosshair-outline);
+    /* Set display: none; if you don't want a center dot */
+}
+
+/* When the player is moving, increase the gap */
+.crosshair.moving {
+    --crosshair-gap: 10px;
+    transition: all 0.1s ease-out;
+}
