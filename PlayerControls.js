@@ -7,7 +7,7 @@ export class PlayerControls {
         this.scene = scene
         this.player = player
         
-        this.defaultKeys = {w: false, s: false, a: false, d:false, space:false, shift:false, scroll: 1000}
+        this.defaultKeys = {w: false, s: false, a: false, d:false, space:false, shift:false, crouch:false, scroll: 1000}
 
         this.keys = this.defaultKeys
         
@@ -23,6 +23,7 @@ export class PlayerControls {
                 if (e.ctrlKey || e.code === "ShiftLeft") e.preventDefault()
                 if(e.code == "Space") this.keys.space = true
                 if (e.code == "ShiftLeft") this.keys.shift = true
+                if (e.code == "ControlLeft") this.keys.crouch = true
                 else this.keys[e.key.toLowerCase()] = true
             }
         })
@@ -31,6 +32,7 @@ export class PlayerControls {
             if (this.gameActive) {
                 if(e.code == "Space") this.keys.space = false
                 if(e.code == "ShiftLeft") this.keys.shift = false
+                if (e.code == "ControlLeft") this.keys.crouch = false
                 else this.keys[e.key.toLowerCase()] = false
             }
         })

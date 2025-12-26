@@ -80,6 +80,14 @@ export class Player {
         this.lastPosition = this.charMesh.position
         let keys = this.controls.update(gameActive)
         let speed = (keys.shift) ? 12.0 : 7.0
+        let height = (keys.crouch) ? 0.7 : 1.0
+
+        this.charMesh.scale.y = THREE.MathUtils.lerp(this.charMesh.scale.y, height, 0.3)
+        //this.charMesh.position.setY(height/2 + this.charMesh.position.y)
+        this.world.removeCollider(this.charCollider, true);
+        const newColliderDesc = RAPIER.ColliderDesc.capsule(height / 2, 0.5); 
+        this.charCollider = this.world.createCollider(newColliderDesc, this.charBody);
+
         const movement = new THREE.Vector3()
 
         this.camera.getWorldDirection(this.forwardsDirection)

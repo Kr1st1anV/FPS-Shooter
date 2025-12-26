@@ -62,13 +62,13 @@ export class Map  {
                 child.material = house4Color
             }
         })
-        house1.position.set(30,0.5,0)
+        house1.position.set(30,0.2,0)
         house1.rotation.y = -Math.PI/2
         house2.rotation.y = Math.PI
-        house2.position.set(0,0.5,30)
-        house3.position.set(-30,0.5,0)
+        house2.position.set(0,0.2,30)
+        house3.position.set(-30,0.2,0)
         house3.rotation.y = Math.PI/2
-        house4.position.set(0,0.5,-30)
+        house4.position.set(0,0.2,-30)
         this.scene.add(house1, house2, house3, house4)
 
         //Helps for higher FPS
@@ -85,15 +85,35 @@ export class Map  {
         //Ground Collision
         let groundBodyDesc = RAPIER.RigidBodyDesc.fixed()
         let groundBody = this.world.createRigidBody(groundBodyDesc)
-        let groundColliderDesc = RAPIER.ColliderDesc.cuboid(50,0.5,50)
+        let groundColliderDesc = RAPIER.ColliderDesc.cuboid(50,0.1,50)
         this.world.createCollider(groundColliderDesc, groundBody)
 
         //Floor Visual
-        const ground = new THREE.Mesh(
-            new THREE.BoxGeometry(100,1,100),
-            new THREE.MeshLambertMaterial({color: 0x00bb00}))
-        ground.matrixAutoUpdate = false;
-        ground.updateMatrix(); // Calculate it once manually
+        const floor = new THREE.Group()
+        const floorColor = new THREE.MeshLambertMaterial({color: 0x00bb00, side: THREE.DoubleSide})
+        
+        for(let i = 0; i < 10; i++) {
+            for(let j = 0; j < 10; j++) {
+                const tile = new THREE.Mesh(
+                    new THREE.PlaneGeometry(10,10),
+                    floorColor)
+                tile.rotation.x = -Math.PI / 2
+                tile.position.set(
+                    -45 + i * 10,
+                    0,
+                    -45 + j * 10
+                );
+
+                //FPS Reduction 
+                tile.material.depthWrite = true
+                tile.renderOrder = -1
+                tile.matrixAutoUpdate = false;
+                tile.updateMatrix(); // Calculate it once manually
+
+                floor.add(tile)
+            }
+        }
+
         //Ramp Visual
         const width = 5;
         const height = 0.4;
@@ -104,7 +124,7 @@ export class Map  {
             new THREE.MeshLambertMaterial({ color: 0xff8f63 })
         );
 
-        const posX = 0, posY = 2, posZ = 0;
+        const posX = 0, posY = 2.05, posZ = 0;
         const rotX = Math.PI / 5.5;
 
         ramp.position.set(posX, posY, posZ);
@@ -121,7 +141,7 @@ export class Map  {
 
         ramp.matrixAutoUpdate = false;
         ramp.updateMatrix();
-        this.scene.add(ground, ramp)
+        this.scene.add(floor, ramp)
     }
 
     update() {
