@@ -1,11 +1,12 @@
 import * as THREE from "three"
 
 export class PlayerControls {
-    constructor(camera, scene, player) {
+    constructor(camera, scene, player, playerClass) {
         this.gameActive = true
         this.camera = camera
         this.scene = scene
         this.player = player
+        this.playerClass = playerClass
         
         this.defaultKeys = {w: false, s: false, a: false, d:false, space:false, shift:false, crouch:false, scroll: 1000}
 
@@ -45,6 +46,12 @@ export class PlayerControls {
         });
         document.addEventListener("wheel", (e) => {
             this.keys.scroll += 2 * e.deltaY
+        })
+
+        document.addEventListener("mousedown", (e) => {
+            if(e.button === 0) {
+                this.playerClass.shoot()
+            }
         })
     }
 
