@@ -57,7 +57,7 @@ export class Player {
             (gltf) => {
                 const gun = gltf.scene;
                 this.charMesh.add(gun)
-                gun.position.set(0.52,0,0)
+                gun.position.set(0.5,0,0.1)
                 gun.material = new THREE.MeshPhongMaterial( {color: 0x00aa00} )
                 gun.frustumCulled = false;
             }

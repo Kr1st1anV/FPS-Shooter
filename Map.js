@@ -14,10 +14,13 @@ export class Map  {
         await RAPIER.init()
 
         //Lighting
-        const sun = new THREE.DirectionalLight(0xffffff, 2)
-        sun.position.set(0,150,0)
-        sun.target.position.set(0,0,0)
-        sun.castShadow = false
+        const sun = new THREE.DirectionalLight(0xffffff, 1)
+        sun.position.set(-100,150,-100)
+        sun.target.position.set(0,100,0)
+        const sun2 = sun.clone()
+        sun.position.set(100,150,100)
+        sun.castShadow = true
+        sun2.castShadow = true
         // sun.shadow.mapSize.width = 512
         // sun.shadow.mapSize.height = 512
         // sun.shadow.camera.near = 1.0
@@ -26,7 +29,7 @@ export class Map  {
         // sun.shadow.camera.right = -50
         // sun.shadow.camera.top = 50
         // sun.shadow.camera.bottom = -50
-        this.scene.add(sun)
+        this.scene.add(sun, sun2)
 
         const loader = new GLTFLoader()
 
@@ -44,13 +47,13 @@ export class Map  {
                 child.material = house1Color
             }
         })
-        const house2Color = new THREE.MeshLambertMaterial({color: 0x00ff00})
+        const house2Color = new THREE.MeshLambertMaterial({color: 0xf0fff0})
         house2.traverse((child) => {
             if (child.isMesh) {
                 child.material = house2Color
             }
         })
-        const house3Color = new THREE.MeshLambertMaterial({color: 0x0000ff})
+        const house3Color = new THREE.MeshLambertMaterial({color: 0xf000ff})
         house3.traverse((child) => {
             if (child.isMesh) {
                 child.material = house3Color
@@ -124,24 +127,44 @@ export class Map  {
             new THREE.MeshLambertMaterial({ color: 0xff8f63 })
         );
 
-        const posX = 0, posY = 2.05, posZ = 0;
-        const rotX = Math.PI / 5.5;
+        ramp.castShadow = true
 
-        ramp.position.set(posX, posY, posZ);
-        ramp.rotation.x = rotX;
+        const wall = ramp.clone()
+
+        const WposX = 0, WposY = 4, WposZ = -10;
+        const WrotX = -Math.PI/2;
+
+        wall.position.set(WposX,WposY,WposZ)
+        wall.rotation.x = WrotX
+
+        const wallDesc = RAPIER.RigidBodyDesc.fixed()
+            .setTranslation(WposX, WposY, WposZ)
+            .setRotation(new THREE.Quaternion().setFromEuler(new THREE.Euler(WrotX, 0, 0)));
+
+        const wallCollider = this.world.createRigidBody(wallDesc);
+        const wallColliderDesc = RAPIER.ColliderDesc.cuboid(width/2, height/2, depth/2);
+        this.world.createCollider(wallColliderDesc, wallCollider);
+
+        const RposX = 0, RposY = 2.05, RposZ = 0;
+        const RrotX = Math.PI / 5.5;
+
+        ramp.position.set(RposX, RposY, RposZ);
+        ramp.rotation.x = RrotX;
         this.scene.add(ramp);
 
-        const bodyDesc = RAPIER.RigidBodyDesc.fixed()
-            .setTranslation(posX, posY, posZ)
-            .setRotation(new THREE.Quaternion().setFromEuler(new THREE.Euler(rotX, 0, 0)));
+        const rampDesc = RAPIER.RigidBodyDesc.fixed()
+            .setTranslation(RposX, RposY, RposZ)
+            .setRotation(new THREE.Quaternion().setFromEuler(new THREE.Euler(RrotX, 0, 0)));
 
-        const body = this.world.createRigidBody(bodyDesc);
-        const colliderDesc = RAPIER.ColliderDesc.cuboid(width/2, height/2, depth/2);
-        this.world.createCollider(colliderDesc, body);
+        const rampCollider = this.world.createRigidBody(rampDesc);
+        const rampcolliderDesc = RAPIER.ColliderDesc.cuboid(width/2, height/2, depth/2);
+        this.world.createCollider(rampcolliderDesc, rampCollider);
 
         ramp.matrixAutoUpdate = false;
         ramp.updateMatrix();
-        this.scene.add(floor, ramp)
+        wall.matrixAutoUpdate = false;
+        wall.updateMatrix();
+        this.scene.add(floor, ramp, wall)
     }
 
     update() {
