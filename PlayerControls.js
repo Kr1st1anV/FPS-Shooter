@@ -17,7 +17,7 @@ export class PlayerControls {
         //FPS
         this.targetDistance = 0.5;
         this.currentDistance = 0.5;
-        this.isFPS = false;
+        this.isFPS = true;
     
         this.controls()
     }
@@ -30,6 +30,7 @@ export class PlayerControls {
                 if(e.code == "Space") this.keys.space = true
                 if (e.code == "ShiftLeft") this.keys.shift = true
                 if (e.code == "ControlLeft") this.keys.crouch = true
+                if (e.code == "Slash") this.isFPS = !this.isFPS
                 else this.keys[e.key.toLowerCase()] = true
             }
         })
@@ -49,12 +50,12 @@ export class PlayerControls {
                 this.cameraRotation.phi -= event.movementY * sensitivity;
             }
         });
-        document.addEventListener("wheel", (e) => {
-            if (this.gameActive) {
-                this.targetDistance += e.deltaY * 5;
-                this.targetDistance = Math.min(Math.max(0.49, this.targetDistance), 4);
-            }
-        });
+        // document.addEventListener("wheel", (e) => {
+        //     if (this.gameActive) {
+        //         this.targetDistance += e.deltaY * 5;
+        //         this.targetDistance = Math.min(Math.max(0.49, this.targetDistance), 4);
+        //     }
+        // });
 
         document.addEventListener("mousedown", (e) => {
             if(e.button === 0 && this.gameActive) {
@@ -66,12 +67,13 @@ export class PlayerControls {
     updateCamera() {
         // 1. Smoothly transition the distance
         this.currentDistance = this.targetDistance;
-        this.isFPS = this.currentDistance <= 0.5;
 
         const playerPos = this.playerMesh.position.clone();
         const headHeight = 1.2; 
         const shoulderWidth = 2;
         const verticalOffset = 0.2; 
+
+        this.targetDistance = (this.isFPS) ? 0.5 : 4
 
         this.cameraRotation.phi = (!this.isFPS) ? Math.max(Math.PI / 12, Math.min(this.cameraRotation.phi, 9 * Math.PI /14)) : Math.max(Math.PI / 16, Math.min(this.cameraRotation.phi, 15 * Math.PI / 16))
 
