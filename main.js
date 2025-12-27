@@ -13,6 +13,7 @@ document.body.appendChild(stats.dom)
 
 const scene = new THREE.Scene()
 scene.background = new THREE.Color(0x89cff0)
+//scene.fog = new THREE.Fog(0x333333, 1, 15)
 
 const camera = new THREE.PerspectiveCamera( 75, window.innerHeight / window.innerHeight, 0.1, 500)
 camera.aspect = window.innerWidth / window.innerHeight
@@ -20,7 +21,7 @@ camera.updateProjectionMatrix()
 camera.position.set(0,1000,0)
 
 const renderer = new THREE.WebGLRenderer({ antialias: false, powerPreference: "high-performance" })
-renderer.shadowMap.enabled = false
+// renderer.shadowMap.enabled = true
 // renderer.shadowMap.type = THREE.BasicShadowMap
 /* Worst to Best Shadow Maps
 * Basic

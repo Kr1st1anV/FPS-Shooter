@@ -57,7 +57,7 @@ export class Player {
             (gltf) => {
                 const gun = gltf.scene;
                 this.charMesh.add(gun)
-                gun.position.set(0.52,-0.2,-0.5)
+                gun.position.set(0.52,0,0)
                 gun.material = new THREE.MeshPhongMaterial( {color: 0x00aa00} )
                 gun.frustumCulled = false;
             }
@@ -140,8 +140,19 @@ export class Player {
         }
         this.lastPosition = this.charMesh.position
         let keys = this.controls.update(gameActive)
-        let speed = (keys.shift) ? 12.0 : 7.0
+        let speed = (keys.shift) ? 10.0 : 7.0
+
+        //Wider FOV when sprinting
+        const normalFOV = 75
+        const sprintFOV = 85
+        let targetFOV = (keys.shift) ? sprintFOV : normalFOV
         
+        if (Math.abs(this.camera.fov - targetFOV) > 0.01) {
+            this.camera.fov = THREE.MathUtils.lerp(this.camera.fov, targetFOV, 0.1);
+            
+            // CRITICAL: You must call this for the change to render!
+            this.camera.updateProjectionMatrix();
+        }
         //Crouch Logic
         // let targetHeight = (keys.crouch) ? this.crouchHeight : this.standingHeight
 
@@ -224,8 +235,8 @@ export class Player {
             const gunPitch = Math.asin(vectorFromCamera.y);
             const gunYaw = Math.atan2(-vectorFromCamera.x, -vectorFromCamera.z);
 
-            this.charMesh.rotation.y = this.lerpAngle(this.charMesh.rotation.y, gunYaw, 0.9);
-            this.gun.rotation.x = this.lerpAngle(this.gun.rotation.x, gunPitch, 0.3);
+            this.charMesh.rotation.y = this.lerpAngle(this.charMesh.rotation.y, gunYaw, 0.12);
+            this.gun.rotation.x = this.lerpAngle(this.gun.rotation.x, gunPitch, 0.12);
         }
         this.controls.updateCamera()
     }
