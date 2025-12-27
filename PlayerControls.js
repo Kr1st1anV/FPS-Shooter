@@ -1,18 +1,23 @@
 import * as THREE from "three"
 
 export class PlayerControls {
-    constructor(camera, scene, player, playerClass) {
+    constructor(camera, scene, playerMesh, playerClass) {
         this.gameActive = true
         this.camera = camera
         this.scene = scene
-        this.player = player
+        this.playerMesh = playerMesh
         this.playerClass = playerClass
         
-        this.defaultKeys = {w: false, s: false, a: false, d:false, space:false, shift:false, crouch:false, scroll: 1000}
+        this.defaultKeys = {w: false, s: false, a: false, d:false, space:false, shift:false, crouch:false}
 
         this.keys = this.defaultKeys
         
         this.cameraRotation = { theta: 0, phi: Math.PI / 2.5}
+
+        //FPS
+        this.targetDistance = 5;
+        this.currentDistance = 5;
+        this.isFPS = false;
     
         this.controls()
     }
@@ -45,8 +50,9 @@ export class PlayerControls {
             }
         });
         document.addEventListener("wheel", (e) => {
-            this.keys.scroll += 2 * e.deltaY
-        })
+            this.targetDistance += e.deltaY * 5;
+            this.targetDistance = Math.min(Math.max(0.49, this.targetDistance), 5);
+        });
 
         document.addEventListener("mousedown", (e) => {
             if(e.button === 0) {
@@ -56,27 +62,56 @@ export class PlayerControls {
     }
 
     updateCamera() {
-            const cameraOffset = new THREE.Vector3();
-            this.keys.scroll = Math.min(Math.max(200, this.keys.scroll), 1000)
-            const distance = this.keys.scroll * 5 / 1000 // Distance from player
-            if (distance <= 2) {
-                this.player.layers.set(1)
-            } else {
-                this.player.layers.set(0)
-            }
-            if (this.cameraRotation.phi < 0.1) this.cameraRotation.phi = Math.max(this.cameraRotation.phi, 0.1)
-            if (this.cameraRotation.phi > (- 0.1 + 7 * Math.PI / 12 )) this.cameraRotation.phi =  Math.min(this.cameraRotation.phi, -0.1 + 7 * Math.PI / 12)
-            // 1. Calculate the offset using Spherical Coordinates
-            cameraOffset.x = distance * Math.sin(this.cameraRotation.phi) * Math.sin(this.cameraRotation.theta)
-            cameraOffset.y = distance * Math.cos(this.cameraRotation.phi) - 0.06
-            cameraOffset.z = distance * Math.sin(this.cameraRotation.phi) * Math.cos(this.cameraRotation.theta);
+        // 1. Smoothly transition the distance
+        this.currentDistance = this.targetDistance;
+        this.isFPS = this.currentDistance <= 0.5;
 
-            // 2. Set camera position relative to player
-            this.camera.position.copy(this.player.position).add(cameraOffset);
+        const playerPos = this.playerMesh.position.clone();
+        const headHeight = 1.6; 
+        const shoulderWidth = 1.7;
+        const verticalOffset = 0.2; 
 
-            // 3. Make the camera look at the player
-            this.camera.lookAt(this.player.position);
-    }   
+        this.cameraRotation.phi = Math.max(0.1, Math.min(this.cameraRotation.phi, 9 * Math.PI /13));
+
+        if (this.isFPS) {
+            this.playerMesh.layers.set(1); // Hide head/body
+
+            this.camera.position.set(playerPos.x, playerPos.y, playerPos.z);
+            
+            const lookAtVector = new THREE.Vector3(
+                Math.sin(this.cameraRotation.phi) * Math.sin(this.cameraRotation.theta),
+                Math.cos(this.cameraRotation.phi),
+                Math.sin(this.cameraRotation.phi) * Math.cos(this.cameraRotation.theta)
+            ).multiplyScalar(-1);
+            this.camera.lookAt(this.camera.position.clone().add(lookAtVector));
+
+        } else {
+            this.playerMesh.layers.set(0);
+
+            const orbitPos = new THREE.Vector3(
+                this.currentDistance * Math.sin(this.cameraRotation.phi) * Math.sin(this.cameraRotation.theta),
+                this.currentDistance * Math.cos(this.cameraRotation.phi),
+                this.currentDistance * Math.sin(this.cameraRotation.phi) * Math.cos(this.cameraRotation.theta)
+            );
+
+            const headPoint = playerPos.clone().add(new THREE.Vector3(0, headHeight, 0));
+            this.camera.position.copy(headPoint).add(orbitPos);
+
+            // Calculate "Right" and "Up" for the Shoulder Rig
+            const cameraDir = new THREE.Vector3().subVectors(this.camera.position, headPoint).normalize();
+            const rightSide = new THREE.Vector3().crossVectors(new THREE.Vector3(0, 1, 0), cameraDir).normalize();
+            
+            // Apply the Shoulder Rig offsets
+            this.camera.position.add(rightSide.multiplyScalar(shoulderWidth));
+            this.camera.position.y += verticalOffset;
+
+            // Aim point: We look at a point in front of the character, not at the character
+            const aimLookAt = headPoint.clone().add(
+                cameraDir.clone().multiplyScalar(-10) // Look 10 units forward
+            );
+            this.camera.lookAt(aimLookAt);
+        }
+    }
 
     update(gameActive) {
         this.gameActive = gameActive

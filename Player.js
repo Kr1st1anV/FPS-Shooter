@@ -36,7 +36,6 @@ export class Player {
 
     async buildChar() {
         //kinematicPositionBased - RigidBody that can be controlled but not by external forces
-        //.kinematicPositionBased().setTranslation(0,5,0)
         this.charBodyDesc = RAPIER.RigidBodyDesc.kinematicPositionBased().setTranslation(0,30,0)
         this.charBody = this.world.createRigidBody(this.charBodyDesc)
 
@@ -58,7 +57,7 @@ export class Player {
             (gltf) => {
                 const gun = gltf.scene;
                 this.charMesh.add(gun)
-                gun.position.set(0.45,-0.1,0)
+                gun.position.set(0.52,-0.2,-0.5)
                 gun.material = new THREE.MeshPhongMaterial( {color: 0x00aa00} )
                 gun.frustumCulled = false;
             }
@@ -68,10 +67,9 @@ export class Player {
     shoot() {
         if (!this.gun) return;
 
-        // 1. Initialize vectors
+        //Initialize vectors
         let muzzlePos = new THREE.Vector3();
 
-        // Force matrix updates so world positions are real numbers
         this.gun.updateMatrixWorld(true);
         this.gun.getWorldPosition(muzzlePos);
         let muzzleDirection = new THREE.Vector3()
@@ -80,14 +78,13 @@ export class Player {
         muzzleDirection.multiplyScalar(-1)
         const addedOffset = muzzleDirection.clone().normalize()
         muzzlePos.add(addedOffset.multiplyScalar(1/1.5))
-        // 2. Physics Raycast
+        //Physics Raycast
         const bulletRay = new RAPIER.Ray(muzzlePos, muzzleDirection);
         const hit = this.world.castRay(bulletRay, 1000, true);
 
         const targetPoint = new THREE.Vector3();
 
-        // 3. The NaN Guard
-        // We check if the physics engine returned a valid distance
+        // Check if the physics engine returned a valid distance
         if (hit && !isNaN(hit.toi)) {
             targetPoint.copy(muzzlePos).add(muzzleDirection.clone().multiplyScalar(hit.toi));
         } else {
@@ -98,13 +95,12 @@ export class Player {
     }
 
     createLineTracer(start, end) {
-        // We use a simple Line with BufferGeometry
         const geometry = new THREE.BufferGeometry().setFromPoints([start, end]);
         const material = new THREE.LineBasicMaterial({ 
-            color: 0xffff00, // Red for high visibility
+            color: 0xffff00,
             transparent: true,
             opacity: 1,
-            depthTest: true // Ensure it's not hidden by the gun model
+            depthTest: true // Ensure it's hidden by the gun model
         });
 
         const line = new THREE.Line(geometry, material);
@@ -114,7 +110,7 @@ export class Player {
         let frame = 0;
         const fade = () => {
             frame++;
-            material.opacity -= 0.15; // Disappears in ~7 frames (very fast)
+            material.opacity -= 0.15;
 
             if (material.opacity <= 0) {
                 this.scene.remove(line);
