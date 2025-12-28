@@ -39,6 +39,9 @@ export class Player {
         //Gun sway
         this.prevCameraRotation = new THREE.Euler().copy(this.camera.rotation);
         this.rotationDelta = new THREE.Vector2();
+        this.jumpOffset = 0;
+
+        this.wasGrounded = true
 
         // Define your "Resting Position" (The gun's home)
         this.gunBasePos = new THREE.Vector3(0.16,-0.18,-0.3);
@@ -92,6 +95,9 @@ export class Player {
 
     applyWeaponSway(delta) {
         if (!this.gun) return;
+
+        this.jumpOffset = THREE.MathUtils.lerp(this.jumpOffset, 0, 0.3)
+
         let bobX = 0;
         let bobY = 0;
         if (this.headBob) {
@@ -106,7 +112,7 @@ export class Player {
         );
         this.gun.position.y = THREE.MathUtils.lerp(
             this.gun.position.y, 
-            this.gunBasePos.y + bobY, 
+            this.gunBasePos.y + bobY - this.jumpOffset, 
             0.11
         );
     }
@@ -209,11 +215,11 @@ export class Player {
         this.applyWeaponSway(delta)
 
         const normalFOV = 75
-        const sprintFOV = 85
+        const sprintFOV = 80
         let targetFOV = (keys.shift) ? sprintFOV : normalFOV
         
         if (Math.abs(this.camera.fov - targetFOV) > 0.01) {
-            this.camera.fov = THREE.MathUtils.lerp(this.camera.fov, targetFOV, 0.1);
+            this.camera.fov = THREE.MathUtils.lerp(this.camera.fov, targetFOV, 0.25);
             this.camera.updateProjectionMatrix();
         }
 
@@ -245,6 +251,7 @@ export class Player {
             if (keys.space) {
                 document.querySelector('.crosshair').classList.add('moving');
                 this.playerVelocity.y = this.jumpStrength
+                this.jumpOffset = -0.13;
             } else {
                 this.playerVelocity.y = Math.max(0, this.playerVelocity.y)
             }
@@ -254,7 +261,13 @@ export class Player {
             this.playerVelocity.y += this.gravityConstant * delta
         }
 
-        this.headBob = (movement.length() !== 0 && isGround)
+        // Example landing detection logic
+        if (isGround && !this.wasGrounded) {
+            this.jumpOffset = 0.14; // Smaller dip for landing
+        }
+        this.wasGrounded = isGround;
+
+        this.headBob = (movement.length() !== 0)
 
         movement.y = this.playerVelocity.y * delta
 

@@ -86,10 +86,10 @@ export class Map  {
 
         // Define house configurations
         const houseConfigs = [
-            { pos: new THREE.Vector3(-25, 0, -5), rot: -Math.PI/2, color: 0x664c28 , scale: 10 },
-            { pos: new THREE.Vector3(-5, 0, -25), rot: Math.PI, color: 0x664c28 , scale: 10 },
-            { pos: new THREE.Vector3(25, 0, 5), rot: Math.PI/2, color: 0x664c28 , scale: 10 },
-            { pos: new THREE.Vector3(-25, 0, 35), rot: 0, color: 0x664c28 , scale: 10 }
+            { pos: new THREE.Vector3(-25, 0, -5), rot: -Math.PI/2, color: 0x664c28 , scale: 8 },
+            { pos: new THREE.Vector3(-5, 0, -25), rot: Math.PI, color: 0x664c28 , scale: 8 },
+            { pos: new THREE.Vector3(25, 0, 5), rot: Math.PI/2, color: 0x664c28 , scale: 8 },
+            { pos: new THREE.Vector3(-25, 0, 35), rot: 0, color: 0x664c28 , scale: 8 }
         ];
 
         houseConfigs.forEach(config => {
@@ -123,29 +123,42 @@ export class Map  {
 
         //Floor Visual
         const ground = new THREE.Group()
+        const tileGeometry = new THREE.PlaneGeometry(5,5)
         const grass = new THREE.MeshLambertMaterial({color: 0x00bb00, side: THREE.DoubleSide})
         const pavement = new THREE.MeshLambertMaterial({color: 0xc19a6b, side: THREE.DoubleSide})
         
-        const groundMappings = [[0,0,0,0,0,0,0,0],
-                                [0,0,0,1,0,0,0,0],
-                                [0,0,0,1,0,0,0,0],
-                                [0,1,1,1,0,0,0,0],
-                                [0,0,0,1,1,1,1,0],
-                                [0,0,0,1,0,0,0,0],
-                                [0,1,1,1,0,0,0,0],
-                                [0,1,0,0,0,0,0,0]]
+        const groundMappings = [[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+                                [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+                                [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+                                [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+                                [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+                                [0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0],
+                                [0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0],
+                                [0,0,0,0,0,0,1,1,1,0,0,0,0,0,0,0,0,0,0,0],
+                                [0,0,0,0,0,1,1,0,1,0,0,0,0,0,0,0,0,0,0,0],
+                                [0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0],
+                                [0,0,0,0,0,0,0,0,1,1,1,1,1,1,0,0,0,0,0,0],
+                                [0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0],
+                                [0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0],
+                                [0,0,0,0,0,0,0,1,1,0,0,0,0,0,0,0,0,0,0,0],
+                                [0,0,0,0,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0],
+                                [0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+                                [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+                                [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+                                [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+                                [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]]
 
-        for(let i = 0; i < 8; i++) {
-            for(let j = 0; j < 8; j++) {
+        for(let i = 0; i < 20; i++) {
+            for(let j = 0; j < 20; j++) {
                 const tileColor = (groundMappings[j][i] == 0) ? grass : pavement
                 const tile = new THREE.Mesh(
-                    new THREE.PlaneGeometry(10,10),
+                    tileGeometry,
                     tileColor)
                 tile.rotation.x = -Math.PI / 2
                 tile.position.set(
-                    -35 + i * 10,
+                    -45 + i * 5,
                     0,
-                    -35 + j * 10
+                    -45 + j * 5
                 );
 
                 //FPS Reduction 
@@ -174,7 +187,7 @@ export class Map  {
 
         const wall = ramp.clone()
 
-        const WposX = 0, WposY = 4, WposZ = 15;
+        const WposX = 0, WposY = 4, WposZ = 7.5;
         const WrotX = -Math.PI/2;
 
         wall.position.set(WposX,WposY,WposZ)
