@@ -14,17 +14,16 @@ export class Player {
         this.controller = this.world.createCharacterController(0.05)
         this.controller.setApplyImpulsesToDynamicBodies(false);
         this.controller.setCharacterMass(1.0);
-        // Ensure this isn't too small
-        this.controller.setOffset(0.1);
-        this.controller.enableSnapToGround(0.2)
+        this.controller.setOffset(0.15);
+        this.controller.enableSnapToGround(0.0)
         this.controller.setMaxSlopeClimbAngle(Math.PI / 4);
 
         this.jumpStrength = 12.0
         this.gravityConstant = -30
         this.playerVelocity = new THREE.Vector3()
 
-        this.currentHeight = 1.0
-        this.standingHeight = 1.0
+        this.currentHeight = 1.3
+        this.standingHeight = 1.3
         this.crouchHeight = 0.8
         this.radius = 0.5
 
@@ -32,10 +31,13 @@ export class Player {
         this.rightDirection = new THREE.Vector3()
         this.buildChar()
         this.controls = new PlayerControls(this.camera, this.scene, this.charMesh, this)
+
+        // Head Bobbing
+        this.headBob = false
+        this.headBobTimer = 0
     }
 
     async buildChar() {
-        //kinematicPositionBased - RigidBody that can be controlled but not by external forces
         this.charBodyDesc = RAPIER.RigidBodyDesc.kinematicPositionBased().setTranslation(0,30,0)
         this.charBody = this.world.createRigidBody(this.charBodyDesc)
 
@@ -46,6 +48,8 @@ export class Player {
             new THREE.CapsuleGeometry(this.radius, this.currentHeight),
             new THREE.MeshLambertMaterial( {color:0xf4fff})
         )
+
+        this.charMesh.castShadow = true
         this.charMesh.frustumCulled = false;
 
         this.scene.add(this.charMesh)
@@ -56,80 +60,110 @@ export class Player {
             '/gun_models/scene.gltf', 
             (gltf) => {
                 const gun = gltf.scene;
-                this.charMesh.add(gun)
-                gun.position.set(0.5,0,0.1)
-                gun.material = new THREE.MeshPhongMaterial( {color: 0x00aa00} )
-                gun.frustumCulled = false;
+                
+                this.camera.add(gun); 
+                this.gun = gun;
+
+                // X: right/left, Y: up/down, Z: forward/back (negative is in front of camera)
+                gun.position.set(0.16,-0.18,-0.3); 
+                // gun.scale.set(0.5, 0.5, 0.5);
+                
+                //gun.rotation.set(0, Math.PI, 0); 
+                
+                gun.traverse(child => {
+                    if (child.isMesh) {
+                        child.frustumCulled = false;
+                        child.layers.set(0)
+                        //child.material.depthTest = false
+                        child.renderOrder = 999
+                        
+                    }
+                });
             }
         );
+    }
+
+    getMuzzleWorldPosition() {
+        const muzzleOffset = new THREE.Vector3(0, 0.08, -1.3); //(Right/Left, Up/Down, Forward/Back)
+        
+        this.gun.updateMatrixWorld(true);
+        const worldMuzzle = muzzleOffset.applyMatrix4(this.gun.matrixWorld);
+        
+        return worldMuzzle;
     }
 
     shoot() {
         if (!this.gun) return;
 
-        //Initialize vectors
-        let muzzlePos = new THREE.Vector3();
+        const muzzlePos = this.getMuzzleWorldPosition()
 
-        this.gun.updateMatrixWorld(true);
-        this.gun.getWorldPosition(muzzlePos);
-        let muzzleDirection = new THREE.Vector3()
+        // Get the direction the camera is looking (Aim)
+        const rayDir = new THREE.Vector3();
+        this.camera.getWorldDirection(rayDir);
 
-        this.gun.getWorldDirection(muzzleDirection)
-        muzzleDirection.multiplyScalar(-1)
-        const addedOffset = muzzleDirection.clone().normalize()
-        muzzlePos.add(addedOffset.multiplyScalar(1/1.5))
-        //Physics Raycast
-        const bulletRay = new RAPIER.Ray(muzzlePos, muzzleDirection);
+        // Physics Raycast from camera center for perfect aim
+        const camPos = new THREE.Vector3();
+        this.camera.getWorldPosition(camPos);
+
+        const bulletRay = new RAPIER.Ray(camPos, rayDir);
         const hit = this.world.castRay(bulletRay, 1000, true);
 
         const targetPoint = new THREE.Vector3();
 
-        // Check if the physics engine returned a valid distance
         if (hit && !isNaN(hit.toi)) {
-            targetPoint.copy(muzzlePos).add(muzzleDirection.clone().multiplyScalar(hit.toi));
+            targetPoint.copy(camPos).add(rayDir.clone().multiplyScalar(hit.toi));
         } else {
-            targetPoint.copy(muzzlePos).add(muzzleDirection.clone().multiplyScalar(1000));
+            targetPoint.copy(camPos).add(rayDir.clone().multiplyScalar(100));
         }
-        
-        this.createLineTracer(muzzlePos, targetPoint);
+        this.createBulletTracer(muzzlePos, targetPoint);
     }
 
-    createLineTracer(start, end) {
-        const geometry = new THREE.BufferGeometry().setFromPoints([start, end]);
-        const material = new THREE.LineBasicMaterial({ 
-            color: 0xffff00,
-            transparent: true,
-            opacity: 1,
-            depthTest: true // Ensure it's hidden by the gun model
-        });
+    createBulletTracer(start, end) {
+        const tracerLength = 1.0;
+        const geometry = new THREE.CylinderGeometry(0.01, 0.01, tracerLength, 5);
+        const material = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: false, blending: THREE.AdditiveBlending });
+        
+        const tracer = new THREE.Mesh(geometry, material);
+        
+        tracer.position.copy(start);
+        tracer.lookAt(end);
+        tracer.rotateX(Math.PI / 2);
+        this.scene.add(tracer);
 
-        const line = new THREE.Line(geometry, material);
-        this.scene.add(line);
+        const travelDistance = start.distanceTo(end);
+        const bulletVelocity = 50; // Units per second (Lower = Slower)
+        let distanceCovered = 0;
+        let lastTime = performance.now();
 
-        // Fade and Remove
-        let frame = 0;
-        const fade = () => {
-            frame++;
-            material.opacity -= 0.15;
+        const animate = (currentTime) => {
+            // Calculate time passed since last frame in seconds
+            const deltaTime = (currentTime - lastTime) / 1000;
+            lastTime = currentTime;
 
-            if (material.opacity <= 0) {
-                this.scene.remove(line);
+            // Calculate how far the bullet moved this frame
+            distanceCovered += bulletVelocity * deltaTime;
+            const progress = distanceCovered / travelDistance;
+
+            if (progress >= 1.0) {
+                this.scene.remove(tracer);
                 geometry.dispose();
                 material.dispose();
-            } else {
-                requestAnimationFrame(fade);
+                return;
             }
+
+            // Move the tracer
+            tracer.position.lerpVectors(start, end, progress);
+
+            requestAnimationFrame(animate);
         };
-        fade();
+
+        requestAnimationFrame(animate);
     }
 
     lerpAngle(start, end, t) {
         let diff = end - start;
-        
-        // Wrap the difference so it's always between -PI and PI
         while (diff < -Math.PI) diff += Math.PI * 2;
         while (diff > Math.PI) diff -= Math.PI * 2;
-        
         return start + diff * t;
     }
 
@@ -142,41 +176,18 @@ export class Player {
         let keys = this.controls.update(gameActive)
         let speed = (keys.shift) ? 10.0 : 7.0
 
-        //Wider FOV when sprinting
+        if (keys.shooting) this.shoot()
+
         const normalFOV = 75
         const sprintFOV = 85
         let targetFOV = (keys.shift) ? sprintFOV : normalFOV
         
         if (Math.abs(this.camera.fov - targetFOV) > 0.01) {
             this.camera.fov = THREE.MathUtils.lerp(this.camera.fov, targetFOV, 0.1);
-            
-            // CRITICAL: You must call this for the change to render!
             this.camera.updateProjectionMatrix();
         }
-        //Crouch Logic
-        // let targetHeight = (keys.crouch) ? this.crouchHeight : this.standingHeight
 
-        // if (targetHeight !== this.currentHeight) {
-        //     this.world.removeCollider(this.charCollider, true);
-
-        //     this.currentHeight = targetHeight;
-            
-        //     const newColliderDesc = RAPIER.ColliderDesc.capsule(targetHeight / 2, this.radius); 
-        //     this.charCollider = this.world.createCollider(newColliderDesc, this.charBody);
-        // }
-
-        // const targetScale = targetHeight / this.standingHeight;
-        // this.charMesh.scale.y = THREE.MathUtils.lerp(this.charMesh.scale.y, targetScale, 0.2);
-        
-        // // Adjust mesh Y offset so the "feet" stay on the ground while scaling
-        // // When scale is 1, offset is 0. When scale is 0.5, offset moves it down.
-        // this.charMesh.children.forEach(child => {
-        //     child.scale.y = 1 / this.charMesh.scale.y;
-        // });
-
-        //Movement Logic
         const movement = new THREE.Vector3()
-
         this.camera.getWorldDirection(this.forwardsDirection)
         this.forwardsDirection.y = 0
         this.forwardsDirection.normalize()
@@ -190,7 +201,6 @@ export class Player {
             movement.x += this.forwardsDirection.x * moveForward
             movement.z += this.forwardsDirection.z * moveForward
         }
-
         if (moveRight) {
             document.querySelector('.crosshair').classList.add('moving');
             movement.x += this.rightDirection.x * moveRight
@@ -201,15 +211,20 @@ export class Player {
 
         const isGround = this.controller.computedGrounded()
 
-        if(isGround && keys.space) {
-            document.querySelector('.crosshair').classList.add('moving');
-            this.playerVelocity.y = this.jumpStrength
-        } else if (!isGround) {
+        if (isGround) {
+            if (keys.space) {
+                document.querySelector('.crosshair').classList.add('moving');
+                this.playerVelocity.y = this.jumpStrength
+            } else {
+                this.playerVelocity.y = Math.max(0, this.playerVelocity.y)
+            }
+        } else {
+            // Normal Gravity
             document.querySelector('.crosshair').classList.add('moving');
             this.playerVelocity.y += this.gravityConstant * delta
-        } else {
-            this.playerVelocity.y = Math.max(0, this.playerVelocity.y)
         }
+
+        if (movement.length() !== 0 && this.playerVelocity.y == 0) this.headBob = true
 
         movement.y = this.playerVelocity.y * delta
 
@@ -222,25 +237,12 @@ export class Player {
             y: currentPosition.y + corrected.y,
             z: currentPosition.z + corrected.z
         })
+        
         this.finalPosition = this.charBody.translation()
         this.charMesh.position.x = THREE.MathUtils.lerp(this.charMesh.position.x, this.finalPosition.x, 0.7)
         this.charMesh.position.y = THREE.MathUtils.lerp(this.charMesh.position.y, this.finalPosition.y, 0.7)
         this.charMesh.position.z = THREE.MathUtils.lerp(this.charMesh.position.z, this.finalPosition.z, 0.7)
 
-        // //Gun Rotation
-        if (this.charMesh.children.length > 0) {
-            this.gun = this.charMesh.children[0];
-            const vectorFromCamera = new THREE.Vector3();
-            this.camera.getWorldDirection(vectorFromCamera);
-            const gunPitch = Math.asin(vectorFromCamera.y);
-            const gunYaw = Math.atan2(-vectorFromCamera.x, -vectorFromCamera.z);
-
-            this.charMesh.rotation.y = this.lerpAngle(this.charMesh.rotation.y, gunYaw, 0.12);
-            this.gun.rotation.x = this.lerpAngle(this.gun.rotation.x, gunPitch, 0.12);
-        }
-        this.controls.updateCamera()
+        this.controls.updateCamera(delta)
     }
 }
-
-
-

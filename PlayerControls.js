@@ -1,14 +1,14 @@
 import * as THREE from "three"
 
 export class PlayerControls {
-    constructor(camera, scene, playerMesh, playerClass) {
+    constructor(camera, scene, playerMesh, player) {
         this.gameActive = true
         this.camera = camera
         this.scene = scene
         this.playerMesh = playerMesh
-        this.playerClass = playerClass
+        this.player = player
         
-        this.defaultKeys = {w: false, s: false, a: false, d:false, space:false, shift:false, crouch:false, mouseMoved: false}
+        this.defaultKeys = {w: false, s: false, a: false, d:false, space:false, shift:false, crouch:false, shooting: false}
 
         this.keys = this.defaultKeys
         
@@ -59,12 +59,12 @@ export class PlayerControls {
 
         document.addEventListener("mousedown", (e) => {
             if(e.button === 0 && this.gameActive) {
-                this.playerClass.shoot()
+                this.player.shoot()
             }
         })
     }
 
-    updateCamera() {
+    updateCamera(delta) {
         // 1. Smoothly transition the distance
         this.currentDistance = this.targetDistance;
 
@@ -105,8 +105,23 @@ export class PlayerControls {
         }
 
         // Apply the Shoulder Rig offsets
-        this.camera.position.add(rightSide.multiplyScalar(shoulderWidth));
-        this.camera.position.y += verticalOffset;
+        if (this.isFPS) {
+            if (this.player.headBob) {
+                const waveLength = Math.PI
+                const nextStep = 1 + Math.floor(((this.player.headBobTimer + 0.000001) * 10) / waveLength)
+                console
+                const nextStepTime = nextStep * waveLength / 10
+                this.player.headBobTimer = Math.min(this.player.headBobTimer + delta, nextStepTime)
+                if (this.player.headBobTimer == nextStepTime) {
+                    this.player.headBob = false
+                }
+                this.camera.position.y += Math.sin(this.player.headBobTimer * 10) * 0.015
+            }
+            
+        } else {
+            this.camera.position.add(rightSide.multiplyScalar(shoulderWidth));
+            this.camera.position.y += verticalOffset
+        }
 
         // Aim point: We look at a point in front of the character, not at the character
         const aimLookAt = headPoint.clone().add(
