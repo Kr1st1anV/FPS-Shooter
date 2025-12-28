@@ -1,5 +1,6 @@
 import * as THREE from "three"
 import RAPIER from '@dimforge/rapier3d-compat';
+import gsap from "gsap"
 import { PlayerControls } from "./PlayerControls"
 import { DRACOLoader, GLTFLoader } from "three/examples/jsm/Addons.js";
 
@@ -18,8 +19,8 @@ export class Player {
         this.controller.enableSnapToGround(0.0)
         this.controller.setMaxSlopeClimbAngle(Math.PI / 4);
 
-        this.jumpStrength = 10.0
-        this.gravityConstant = -30
+        this.jumpStrength = 11.0
+        this.gravityConstant = -35
         this.playerVelocity = new THREE.Vector3()
 
         this.currentHeight = 1.3
@@ -45,13 +46,14 @@ export class Player {
 
         // Define your "Resting Position" (The gun's home)
         this.gunBasePos = new THREE.Vector3(0.16,-0.18,-0.3);
+        //Gun recoil
     }
 
     async buildChar() {
         this.charBodyDesc = RAPIER.RigidBodyDesc.kinematicPositionBased().setTranslation(0,30,0)
         this.charBody = this.world.createRigidBody(this.charBodyDesc)
 
-        this.charColliderDesc = RAPIER.ColliderDesc.capsule(this.currentHeight/2, this.radius)
+        this.charColliderDesc = RAPIER.ColliderDesc.capsule(this.currentHeight/2, this.radius).setCollisionGroups(0x00010002)
         this.charCollider = this.world.createCollider(this.charColliderDesc, this.charBody)
 
         this.charMesh = new THREE.Mesh(
@@ -118,7 +120,7 @@ export class Player {
     }
 
     getMuzzleWorldPosition() {
-        const muzzleOffset = new THREE.Vector3(0, 0.08, -1.3); //(Right/Left, Up/Down, Forward/Back)
+        const muzzleOffset = new THREE.Vector3(0, 0.08, -0.5); //(Right/Left, Up/Down, Forward/Back)
         
         this.gun.updateMatrixWorld(true);
         const worldMuzzle = muzzleOffset.applyMatrix4(this.gun.matrixWorld);
@@ -130,62 +132,97 @@ export class Player {
         if (!this.gun) return;
 
         const muzzlePos = this.getMuzzleWorldPosition()
-
-        // Get the direction the camera is looking (Aim)
-        const rayDir = new THREE.Vector3();
-        this.camera.getWorldDirection(rayDir);
-
-        // Physics Raycast from camera center for perfect aim
+        const camDir = new THREE.Vector3();
         const camPos = new THREE.Vector3();
         this.camera.getWorldPosition(camPos);
+        this.camera.getWorldDirection(camDir);
 
-        const bulletRay = new RAPIER.Ray(camPos, rayDir);
-        const hit = this.world.castRay(bulletRay, 1000, true);
+        const bulletRay = new RAPIER.Ray(camPos, camDir);
+
+        const hit = this.world.castRayAndGetNormal(bulletRay, 
+                                        1000, 
+                                        true,
+                                        undefined,
+                                        undefined,
+                                        undefined,
+                                        this.charBody);
 
         const targetPoint = new THREE.Vector3();
 
-        if (hit && !isNaN(hit.toi)) {
-            targetPoint.copy(camPos).add(rayDir.clone().multiplyScalar(hit.toi));
+        if (hit && !isNaN(hit.timeOfImpact)) {
+            targetPoint.copy(camPos).add(camDir.clone().multiplyScalar(hit.timeOfImpact));
+
+            const hitNormal = new THREE.Vector3(hit.normal.x, hit.normal.y, hit.normal.z)
+
+            this.createImpactDot(targetPoint, hitNormal)
         } else {
-            targetPoint.copy(camPos).add(rayDir.clone().multiplyScalar(100));
+            targetPoint.copy(camPos).add(camDir.clone().multiplyScalar(100));
         }
         this.createBulletTracer(muzzlePos, targetPoint);
     }
 
+    createImpactDot(point, normal) {
+        const geometry = new THREE.CircleGeometry(0.04, 8);
+        const material = new THREE.MeshBasicMaterial({ 
+            color: 0x000000, 
+            transparent: true, 
+            opacity: 0.9 
+        });
+        const dot = new THREE.Mesh(geometry, material);
+
+        dot.position.copy(point).add(normal.clone().multiplyScalar(0.01));
+        dot.lookAt(point.clone().add(normal));
+        this.scene.add(dot);
+
+        // GSAP Timeline: Wait 3 seconds, then fade out over 2 seconds
+        gsap.to(material, {
+            opacity: 0,
+            delay: 8,        // Stay solid for 3 seconds
+            duration: 1,     // Then take 2 seconds to fade
+            onComplete: () => {
+                this.scene.remove(dot);
+                geometry.dispose();
+                material.dispose();
+            }
+        });
+    }
+
     createBulletTracer(start, end) {
-        const tracerLength = 1.0;
+        const travelDistance = start.distanceTo(end);
+        if (travelDistance < 0.1) return;
+
+        // Create a simple white tracer (cylinder)
+        const tracerLength = 2.0;
         const geometry = new THREE.CylinderGeometry(0.01, 0.01, tracerLength, 5);
-        const material = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: false, blending: THREE.AdditiveBlending });
-        
+        const material = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: false });
         const tracer = new THREE.Mesh(geometry, material);
-        
+
+        // Initial setup: place at muzzle and point to target
         tracer.position.copy(start);
         tracer.lookAt(end);
-        tracer.rotateX(Math.PI / 2);
+        tracer.rotateX(Math.PI / 2); // Align cylinder axis
         this.scene.add(tracer);
 
-        const travelDistance = start.distanceTo(end);
-        const bulletVelocity = 50; // Units per second (Lower = Slower)
+        const bulletSpeed = 120; // Units per second
         let distanceCovered = 0;
         let lastTime = performance.now();
 
         const animate = (currentTime) => {
-            // Calculate time passed since last frame in seconds
             const deltaTime = (currentTime - lastTime) / 1000;
             lastTime = currentTime;
 
-            // Calculate how far the bullet moved this frame
-            distanceCovered += bulletVelocity * deltaTime;
+            distanceCovered += bulletSpeed * deltaTime;
             const progress = distanceCovered / travelDistance;
 
+            // STOP LOGIC: If progress >= 1, the bullet hit the collider
             if (progress >= 1.0) {
                 this.scene.remove(tracer);
                 geometry.dispose();
                 material.dispose();
-                return;
+                return; 
             }
 
-            // Move the tracer
+            // Move the bullet along the path
             tracer.position.lerpVectors(start, end, progress);
 
             requestAnimationFrame(animate);
@@ -251,7 +288,7 @@ export class Player {
             if (keys.space) {
                 document.querySelector('.crosshair').classList.add('moving');
                 this.playerVelocity.y = this.jumpStrength
-                this.jumpOffset = -0.13;
+                this.jumpOffset = -0.15;
             } else {
                 this.playerVelocity.y = Math.max(0, this.playerVelocity.y)
             }
@@ -263,11 +300,11 @@ export class Player {
 
         // Example landing detection logic
         if (isGround && !this.wasGrounded) {
-            this.jumpOffset = 0.14; // Smaller dip for landing
+            this.jumpOffset = 0.3; // Smaller dip for landing
         }
         this.wasGrounded = isGround;
 
-        this.headBob = (movement.length() !== 0)
+        this.headBob = (movement.length() !== 0 && isGround)
 
         movement.y = this.playerVelocity.y * delta
 
