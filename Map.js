@@ -207,7 +207,7 @@ export class Map  {
         ramp.updateMatrix();
         wall.matrixAutoUpdate = false;
         wall.updateMatrix();
-        this.scene.add(ground, ramp)
+        this.scene.add(ground, ramp, wall)
     }
 
     update() {

@@ -18,7 +18,7 @@ export class Player {
         this.controller.enableSnapToGround(0.0)
         this.controller.setMaxSlopeClimbAngle(Math.PI / 4);
 
-        this.jumpStrength = 12.0
+        this.jumpStrength = 10.0
         this.gravityConstant = -30
         this.playerVelocity = new THREE.Vector3()
 
@@ -35,6 +35,13 @@ export class Player {
         // Head Bobbing
         this.headBob = false
         this.headBobTimer = 0
+
+        //Gun sway
+        this.prevCameraRotation = new THREE.Euler().copy(this.camera.rotation);
+        this.rotationDelta = new THREE.Vector2();
+
+        // Define your "Resting Position" (The gun's home)
+        this.gunBasePos = new THREE.Vector3(0.16,-0.18,-0.3);
     }
 
     async buildChar() {
@@ -80,6 +87,27 @@ export class Player {
                     }
                 });
             }
+        );
+    }
+
+    applyWeaponSway(delta) {
+        if (!this.gun) return;
+        let bobX = 0;
+        let bobY = 0;
+        if (this.headBob) {
+            this.headBobTimer += delta * 12; 
+            bobX = Math.sin(this.headBobTimer * 0.5) * 0.015;
+            bobY = Math.cos(this.headBobTimer) * 0.01;
+        }
+        this.gun.position.x = THREE.MathUtils.lerp(
+            this.gun.position.x, 
+            this.gunBasePos.x + bobX, 
+            0.11
+        );
+        this.gun.position.y = THREE.MathUtils.lerp(
+            this.gun.position.y, 
+            this.gunBasePos.y + bobY, 
+            0.11
         );
     }
 
@@ -174,9 +202,11 @@ export class Player {
         }
         this.lastPosition = this.charMesh.position
         let keys = this.controls.update(gameActive)
-        let speed = (keys.shift) ? 10.0 : 7.0
+        let speed = (keys.shift) ? 7.0 : 5.0
 
         if (keys.shooting) this.shoot()
+
+        this.applyWeaponSway(delta)
 
         const normalFOV = 75
         const sprintFOV = 85
@@ -224,7 +254,7 @@ export class Player {
             this.playerVelocity.y += this.gravityConstant * delta
         }
 
-        if (movement.length() !== 0 && this.playerVelocity.y == 0) this.headBob = true
+        this.headBob = (movement.length() !== 0 && isGround)
 
         movement.y = this.playerVelocity.y * delta
 
