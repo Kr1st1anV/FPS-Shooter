@@ -8,82 +8,99 @@ export class PlayerControls {
         this.playerMesh = playerMesh
         this.player = player
         
-        this.defaultKeys = {w: false, s: false, a: false, d:false, space:false, shift:false, crouch:false, isFiring: false}
-
-        this.keys = this.defaultKeys
+        this.defaultKeys = {w: false, s: false, a: false, d:false, r: false, space:false, shift:false, crouch:false, isFiring: false}
+        this.keys = { ...this.defaultKeys }
         
-        this.cameraRotation = { theta: 0, phi: Math.PI / 2.5}
+        // Spherical Coordinates
+        // theta is horizontal (left/right), phi is vertical (up/down)
+        this.cameraRotation = { theta: 0, phi: Math.PI / 2 }
 
-        //FPS
+        // FPS/TPS settings
         this.targetDistance = 0.5;
         this.currentDistance = 0.5;
         this.isFPS = true;
 
-        //Recoil
+        // Recoil Kick (The snappy physical movement during fire)
         this.recoil = { x: 0, y: 0 };
         this.targetRecoil = { x: 0, y: 0 };
-        this.recoilSnappiness = 15; // Speed of the upward kick
-        this.recoilReturnSpeed = 5; // Speed of the recovery
+        this.recoilSnappiness = 15; 
+        this.recoilReturnSpeed = 10; 
+
+        // Recoil Recovery (The smooth drift back to original aim)
+        this.accumulatedRecoilY = 0;
+        this.accumulatedRecoilX = 0;
+        this.recoverySpeed = 5.0; // How fast the aim centers (lerp factor)
     
-        this.controls()
+        this.setupEventListeners()
     }
 
-    controls() {
+    setupEventListeners() {
         document.addEventListener("keydown", (e) => {
             if (this.gameActive) {
-                if (e.ctrlKey || e.code === "ControlLeft") e.preventDefault()
-                if (e.ctrlKey || e.code === "ShiftLeft") e.preventDefault()
-                if(e.code == "Space") this.keys.space = true
-                if (e.code == "ShiftLeft") this.keys.shift = true
-                if (e.code == "ControlLeft") this.keys.crouch = true
-                if (e.code == "Slash") this.isFPS = !this.isFPS
+                if (e.code === "Space") this.keys.space = true
+                if (e.code === "ShiftLeft") this.keys.shift = true
+                if (e.code === "ControlLeft") this.keys.crouch = true
+                if (e.code === "Slash") this.isFPS = !this.isFPS
                 else this.keys[e.key.toLowerCase()] = true
             }
         })
 
         document.addEventListener("keyup", (e) => {
             if (this.gameActive) {
-                if(e.code == "Space") this.keys.space = false
-                if(e.code == "ShiftLeft") this.keys.shift = false
-                if (e.code == "ControlLeft") this.keys.crouch = false
+                if (e.code === "Space") this.keys.space = false
+                if (e.code === "ShiftLeft") this.keys.shift = false
+                if (e.code === "ControlLeft") this.keys.crouch = false
                 else this.keys[e.key.toLowerCase()] = false
             }
         })
+
         document.addEventListener('mousemove', (event) => {
-            const sensitivity = 0.003;
+            const sensitivity = 0.002;
             if (this.gameActive) {
-                this.cameraRotation.theta -= event.movementX * sensitivity;
-                this.cameraRotation.phi -= event.movementY * sensitivity;
+                const mouseX = event.movementX * sensitivity;
+                const mouseY = event.movementY * sensitivity;
+
+                this.cameraRotation.theta -= mouseX;
+                this.cameraRotation.phi -= mouseY;
+
+                // MANUAL COMPENSATION:
+                // If the player pulls the mouse in the opposite direction of the recoil,
+                // we reduce the recovery buffer so the auto-centering doesn't overshoot.
+                if (mouseY < 0) { // Moving mouse down
+                    this.accumulatedRecoilY += mouseY;
+                    if (this.accumulatedRecoilY < 0) this.accumulatedRecoilY = 0;
+                }
+                
+                if (Math.abs(mouseX) > 0) {
+                    // Check if player is moving mouse opposite to the horizontal recoil debt
+                    if (Math.sign(mouseX) !== Math.sign(this.accumulatedRecoilX)) {
+                        this.accumulatedRecoilX += mouseX;
+                    }
+                }
             }
         });
-        // document.addEventListener("wheel", (e) => {
-        //     if (this.gameActive) {
-        //         this.targetDistance += e.deltaY * 5;
-        //         this.targetDistance = Math.min(Math.max(0.49, this.targetDistance), 4);
-        //     }
-        // });
 
         document.addEventListener("mousedown", (e) => {
-            if(e.button === 0 && this.gameActive) {
-                this.keys.isFiring = true
-            }
+            if(e.button === 0 && this.gameActive) this.keys.isFiring = true
         })
 
         document.addEventListener("mouseup", (e) => {
-            if(e.button === 0 && this.gameActive) {
-                this.keys.isFiring = false
-            }
+            if(e.button === 0 && this.gameActive) this.keys.isFiring = false
         })
     }
 
     applyRecoil(x, y) {
-        // x affects theta (horizontal), y affects phi (vertical)
+        // Apply to snappy kick targets
         this.targetRecoil.x += x;
-        this.targetRecoil.y += y;
+        this.targetRecoil.y += y; 
+
+        // Add to recovery debt
+        this.accumulatedRecoilY += y; 
+        this.accumulatedRecoilX += x;
     }
 
-    updateCamera(delta) {
-
+    updateCamera(delta, isFiring) {
+        // 1. HANDLE RECOIL KICK (The initial snap)
         this.targetRecoil.x = THREE.MathUtils.lerp(this.targetRecoil.x, 0, this.recoilReturnSpeed * delta)
         this.targetRecoil.y = THREE.MathUtils.lerp(this.targetRecoil.y, 0, this.recoilReturnSpeed * delta)
 
@@ -92,76 +109,70 @@ export class PlayerControls {
 
         this.cameraRotation.phi += this.recoil.y
         this.cameraRotation.theta += this.recoil.x
-        
-        this.currentDistance = this.targetDistance;
 
+        // 2. HANDLE SMOOTH RECOVERY (The drift back to center)
+        if (!isFiring) {
+            // Store current debt
+            const prevAccY = this.accumulatedRecoilY;
+            const prevAccX = this.accumulatedRecoilX;
+
+            // Lerp the debt towards zero (the "easing" effect)
+            this.accumulatedRecoilY = THREE.MathUtils.lerp(this.accumulatedRecoilY, 0, this.recoverySpeed * delta);
+            this.accumulatedRecoilX = THREE.MathUtils.lerp(this.accumulatedRecoilX, 0, this.recoverySpeed * delta);
+
+            // Calculate the delta (how much the debt changed this frame)
+            const diffY = prevAccY - this.accumulatedRecoilY;
+            const diffX = prevAccX - this.accumulatedRecoilX;
+
+            // Apply the difference to the rotation
+            this.cameraRotation.phi -= diffY;
+            this.cameraRotation.theta -= diffX;
+
+            // Snap to zero if extremely small to prevent drifting
+            if (Math.abs(this.accumulatedRecoilY) < 0.0001) this.accumulatedRecoilY = 0;
+            if (Math.abs(this.accumulatedRecoilX) < 0.0001) this.accumulatedRecoilX = 0;
+        }
+
+        // 3. CLAMP VERTICAL ROTATION (Prevent flipping upside down)
+        const minPhi = this.isFPS ? 0.01 : Math.PI / 12;
+        const maxPhi = this.isFPS ? Math.PI - 0.01 : Math.PI / 1.5;
+        this.cameraRotation.phi = THREE.MathUtils.clamp(this.cameraRotation.phi, minPhi, maxPhi);
+
+        // 4. POSITION THE CAMERA
+        this.currentDistance = THREE.MathUtils.lerp(this.currentDistance, this.isFPS ? 0.01 : 4, 0.1);
         const playerPos = this.playerMesh.position.clone();
-        const headHeight = 1.2; 
-        const shoulderWidth = 2;
-        const verticalOffset = 0.2; 
-
-        this.targetDistance = (this.isFPS) ? 0.5 : 4
-
-        this.cameraRotation.phi = (this.isFPS) ? Math.max(Math.PI / 180, Math.min(this.cameraRotation.phi, 15 * Math.PI / 16)) : Math.max(Math.PI / 12, Math.min(this.cameraRotation.phi, 9 * Math.PI /14));
-
+        
         const orbitPos = new THREE.Vector3(
-                this.currentDistance * Math.sin(this.cameraRotation.phi) * Math.sin(this.cameraRotation.theta),
-                this.currentDistance * Math.cos(this.cameraRotation.phi),
-                this.currentDistance * Math.sin(this.cameraRotation.phi) * Math.cos(this.cameraRotation.theta)
-            );
-        let headPoint, cameraDir, rightSide;
-        if (this.isFPS) {
-            this.playerMesh.layers.set(1); // Hide head/body
-
-            headPoint = playerPos.clone().add(new THREE.Vector3(0, 0, 0));
-            this.camera.position.copy(headPoint).add(orbitPos);
-
-            // Calculate "Right" and "Up" for the Shoulder Rig
-            cameraDir = new THREE.Vector3().subVectors(this.camera.position, headPoint).normalize();
-            rightSide = new THREE.Vector3().crossVectors(new THREE.Vector3(0, 0, 0), cameraDir).normalize();
-
-        } else {
-            this.playerMesh.layers.set(0);
-
-            headPoint = playerPos.clone().add(new THREE.Vector3(0, headHeight, 0));
-            this.camera.position.copy(headPoint).add(orbitPos);
-
-            // Calculate "Right" and "Up" for the Shoulder Rig
-            cameraDir = new THREE.Vector3().subVectors(this.camera.position, headPoint).normalize();
-            rightSide = new THREE.Vector3().crossVectors(new THREE.Vector3(0, 1, 0), cameraDir).normalize();
-        }
-
-        // Apply the Shoulder Rig offsets
-        // if (this.isFPS) {
-        //     if (this.player.headBob) {
-        //         const waveLength = Math.PI
-        //         const nextStep = 1 + Math.floor(((this.player.headBobTimer + 0.000001) * 10) / waveLength)
-        //         console
-        //         const nextStepTime = nextStep * waveLength / 10
-        //         this.player.headBobTimer = Math.min(this.player.headBobTimer + delta, nextStepTime)
-        //         if (this.player.headBobTimer == nextStepTime) {
-        //             this.player.headBob = false
-        //         }
-        //         this.camera.position.y += Math.sin(this.player.headBobTimer * 10) * 0.15//Headbob amplitude
-        //     }
-            
-        // } else {
-        if (!this.isFPS) {
-            this.camera.position.add(rightSide.multiplyScalar(shoulderWidth));
-            this.camera.position.y += verticalOffset
-        }
-
-        // Aim point: We look at a point in front of the character, not at the character
-        const aimLookAt = headPoint.clone().add(
-            cameraDir.clone().multiplyScalar(-10) // Look 10 units forward
+            this.currentDistance * Math.sin(this.cameraRotation.phi) * Math.sin(this.cameraRotation.theta),
+            this.currentDistance * Math.cos(this.cameraRotation.phi),
+            this.currentDistance * Math.sin(this.cameraRotation.phi) * Math.cos(this.cameraRotation.theta)
         );
+
+        // Head point (y=1.2 is average eyes height)
+        const headPoint = playerPos.clone().add(new THREE.Vector3(0, 1.2, 0));
+        this.camera.position.copy(headPoint).add(orbitPos);
+
+        // 5. LOOK DIRECTION
+        const cameraDir = new THREE.Vector3().subVectors(this.camera.position, headPoint).normalize();
+        const aimLookAt = headPoint.clone().add(cameraDir.clone().multiplyScalar(-10));
         this.camera.lookAt(aimLookAt);
+
+        // 6. LAYER / SHOULDER RIG (TPS only)
+        if (this.isFPS) {
+            this.playerMesh.layers.set(1); // Hide character body for FPS
+        } else {
+            this.playerMesh.layers.set(0); // Show character body for TPS
+            // Move camera slightly to the right of the head for over-the-shoulder view
+            const rightSide = new THREE.Vector3().crossVectors(new THREE.Vector3(0, 1, 0), cameraDir).normalize();
+            this.camera.position.add(rightSide.multiplyScalar(0.8));
+            this.camera.position.y += 0.2;
+        }
     }
 
     update(gameActive) {
         this.gameActive = gameActive
         if (!this.gameActive) {
-            this.keys = this.defaultKeys
+            this.keys = { ...this.defaultKeys };
         }
         return this.keys
     }
