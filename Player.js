@@ -47,6 +47,9 @@ export class Player {
         // Define your "Resting Position" (The gun's home)
         this.gunBasePos = new THREE.Vector3(0.16,-0.18,-0.3);
         //Gun recoil
+        // Add to your constructor
+        this.recoilOffset = new THREE.Vector3();
+        this.recoilVelocity = new THREE.Vector3();
     }
 
     async buildChar() {
@@ -159,6 +162,10 @@ export class Player {
             targetPoint.copy(camPos).add(camDir.clone().multiplyScalar(100));
         }
         this.createBulletTracer(muzzlePos, targetPoint);
+
+        this.recoilVelocity.z += 0.15; // Kick back
+        this.recoilVelocity.y += 0.08; // Kick up
+        this.recoilVelocity.x += (Math.random() - 0.5) * 0.05; // Random horizontal jitter
     }
 
     createImpactDot(point, normal) {
