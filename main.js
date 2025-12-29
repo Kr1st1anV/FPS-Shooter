@@ -14,7 +14,7 @@ const scene = new THREE.Scene()
 scene.background = new THREE.Color(0x89cff0)
 //scene.fog = new THREE.Fog(0x333333, 1, 15)
 
-const camera = new THREE.PerspectiveCamera( 75, window.innerHeight / window.innerHeight, 0.1, 500)
+const camera = new THREE.PerspectiveCamera( 75, window.innerHeight / window.innerHeight, 0.01, 500)
 camera.aspect = window.innerWidth / window.innerHeight
 camera.updateProjectionMatrix()
 camera.position.set(0,1000,0)

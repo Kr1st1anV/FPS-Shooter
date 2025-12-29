@@ -8,7 +8,7 @@ export class PlayerControls {
         this.playerMesh = playerMesh
         this.player = player
         
-        this.defaultKeys = {w: false, s: false, a: false, d:false, space:false, shift:false, crouch:false}
+        this.defaultKeys = {w: false, s: false, a: false, d:false, space:false, shift:false, crouch:false, isFiring: false}
 
         this.keys = this.defaultKeys
         
@@ -18,6 +18,12 @@ export class PlayerControls {
         this.targetDistance = 0.5;
         this.currentDistance = 0.5;
         this.isFPS = true;
+
+        //Recoil
+        this.recoil = { x: 0, y: 0 };
+        this.targetRecoil = { x: 0, y: 0 };
+        this.recoilSnappiness = 15; // Speed of the upward kick
+        this.recoilReturnSpeed = 5; // Speed of the recovery
     
         this.controls()
     }
@@ -59,13 +65,34 @@ export class PlayerControls {
 
         document.addEventListener("mousedown", (e) => {
             if(e.button === 0 && this.gameActive) {
-                this.player.shoot()
+                this.keys.isFiring = true
+            }
+        })
+
+        document.addEventListener("mouseup", (e) => {
+            if(e.button === 0 && this.gameActive) {
+                this.keys.isFiring = false
             }
         })
     }
 
+    applyRecoil(x, y) {
+        // x affects theta (horizontal), y affects phi (vertical)
+        this.targetRecoil.x += x;
+        this.targetRecoil.y += y;
+    }
+
     updateCamera(delta) {
-        // 1. Smoothly transition the distance
+
+        this.targetRecoil.x = THREE.MathUtils.lerp(this.targetRecoil.x, 0, this.recoilReturnSpeed * delta)
+        this.targetRecoil.y = THREE.MathUtils.lerp(this.targetRecoil.y, 0, this.recoilReturnSpeed * delta)
+
+        this.recoil.x = THREE.MathUtils.lerp(this.recoil.x, this.targetRecoil.x, this.recoilSnappiness * delta)
+        this.recoil.y = THREE.MathUtils.lerp(this.recoil.y, this.targetRecoil.y, this.recoilSnappiness * delta)
+
+        this.cameraRotation.phi += this.recoil.y
+        this.cameraRotation.theta += this.recoil.x
+        
         this.currentDistance = this.targetDistance;
 
         const playerPos = this.playerMesh.position.clone();
@@ -75,7 +102,7 @@ export class PlayerControls {
 
         this.targetDistance = (this.isFPS) ? 0.5 : 4
 
-        this.cameraRotation.phi = (!this.isFPS) ? Math.max(Math.PI / 12, Math.min(this.cameraRotation.phi, 9 * Math.PI /14)) : Math.max(Math.PI / 16, Math.min(this.cameraRotation.phi, 15 * Math.PI / 16))
+        this.cameraRotation.phi = (this.isFPS) ? Math.max(Math.PI / 180, Math.min(this.cameraRotation.phi, 15 * Math.PI / 16)) : Math.max(Math.PI / 12, Math.min(this.cameraRotation.phi, 9 * Math.PI /14));
 
         const orbitPos = new THREE.Vector3(
                 this.currentDistance * Math.sin(this.cameraRotation.phi) * Math.sin(this.cameraRotation.theta),

@@ -38,18 +38,39 @@ export class Player {
         this.headBobTimer = 0
 
         //Gun sway
-        this.prevCameraRotation = new THREE.Euler().copy(this.camera.rotation);
         this.rotationDelta = new THREE.Vector2();
         this.jumpOffset = 0;
 
         this.wasGrounded = true
 
-        // Define your "Resting Position" (The gun's home)
+        // Define your "Resting Position"
         this.gunBasePos = new THREE.Vector3(0.16,-0.18,-0.3);
+        
         //Gun recoil
-        // Add to your constructor
         this.recoilOffset = new THREE.Vector3();
         this.recoilVelocity = new THREE.Vector3();
+
+        //Bullet Pattern
+        // Inside your constructor
+        this.isFiring = false;
+        this.fireRate = 150; // Milliseconds between shots (100ms = 600 RPM)
+        this.lastShotTime = 0;
+
+        this.recoilPattern = [
+            { x: 0.00, y: 0.00 }, // 1: Stem start
+            { x: 0.00, y: 0.01 }, // 2: Stem
+            { x: 0.00, y: 0.02 }, // 3: Stem
+            { x: 0.00, y: 0.03 }, // 3: Stem
+            { x: 0.00, y: 0.04 }, // 4: Center of the T-top
+            // { x: 0.025, y: 0.08 }, // 5: Move Right
+            // { x: 0.05, y: 0.08 }, // 6: Far Right
+            // { x: -0.025, y: 0.08 },// 7: Swing back Left
+            // { x: -0.05, y: 0.08 },// 8: Far Left
+        ];
+
+        this.swayDirection = 1; // Used for the infinite back-and-forth after shot 8
+        this.shotCount = 0;
+
     }
 
     async buildChar() {
@@ -101,6 +122,11 @@ export class Player {
     applyWeaponSway(delta) {
         if (!this.gun) return;
 
+        // We multiply the velocity and offset by a factor less than 1.0 every frame
+        this.recoilVelocity.multiplyScalar(0.9); // Friction
+        this.recoilOffset.add(this.recoilVelocity); // Apply velocity to position
+        this.recoilOffset.multiplyScalar(0.8); // Snap back to 0 (Spring)
+
         this.jumpOffset = THREE.MathUtils.lerp(this.jumpOffset, 0, 0.3)
 
         let bobX = 0;
@@ -112,18 +138,23 @@ export class Player {
         }
         this.gun.position.x = THREE.MathUtils.lerp(
             this.gun.position.x, 
-            this.gunBasePos.x + bobX, 
+            this.gunBasePos.x + bobX + this.recoilOffset.x * 0.2, 
             0.11
         );
         this.gun.position.y = THREE.MathUtils.lerp(
             this.gun.position.y, 
-            this.gunBasePos.y + bobY - this.jumpOffset, 
+            this.gunBasePos.y + bobY - this.jumpOffset + this.recoilOffset.y * 0.05, 
             0.11
+        );
+        this.gun.position.z = THREE.MathUtils.lerp(
+            this.gun.position.z, 
+            this.gunBasePos.z + this.recoilOffset.z * 0.12, 
+            0.9
         );
     }
 
     getMuzzleWorldPosition() {
-        const muzzleOffset = new THREE.Vector3(0, 0.08, -0.5); //(Right/Left, Up/Down, Forward/Back)
+        const muzzleOffset = new THREE.Vector3(0, 0.08, -0.44); //(Right/Left, Up/Down, Forward/Back)
         
         this.gun.updateMatrixWorld(true);
         const worldMuzzle = muzzleOffset.applyMatrix4(this.gun.matrixWorld);
@@ -133,14 +164,78 @@ export class Player {
 
     shoot() {
         if (!this.gun) return;
+        
+        // Bullet Delay
+        const now = performance.now()
 
-        const muzzlePos = this.getMuzzleWorldPosition()
+        if(now - this.lastShotTime < this.fireRate) return
+
+        if (now - this.lastShotTime > 250) {
+            this.shotCount = 0
+            this.swayDirection = 1
+        }
+
+        this.lastShotTime = now
+
+        let pattern; 
+        let verticalKick;
+
+        //Bullet pattern
+        if (this.shotCount < this.recoilPattern.length) {
+            pattern = this.recoilPattern[this.shotCount]
+            verticalKick = 0.004
+        } else {
+            const bulletPatternWidth = 0.040
+            //const bulletPatterSpeed = 0.02
+            verticalKick = 0.0
+            const bulletPatternX = Math.cos(this.shotCount * 0.8) * bulletPatternWidth
+            pattern = {x: bulletPatternX, y: 0}
+        }
+
+        this.shotCount += 1
+
         const camDir = new THREE.Vector3();
         const camPos = new THREE.Vector3();
         this.camera.getWorldPosition(camPos);
         this.camera.getWorldDirection(camDir);
+        camDir.normalize()
 
-        const bulletRay = new RAPIER.Ray(camPos, camDir);
+        const right = new THREE.Vector3().crossVectors(camDir, new THREE.Vector3(0, 1, 0)).normalize();
+        const up = new THREE.Vector3().crossVectors(right, camDir).normalize();
+
+        // Adjust the ray direction based on the pattern
+
+        const tempRay = new RAPIER.Ray(camPos, camDir)
+        const distanceHit =  this.world.castRay(tempRay, 
+                                        1000, 
+                                        true,
+                                        undefined,
+                                        undefined,
+                                        undefined,
+                                        this.charBody);
+                                        
+        const dist = distanceHit ? distanceHit.timeOfImpact : 100
+
+        let distanceFactor = THREE.MathUtils.clamp(5 / dist, 0, 1.8)
+
+        const recoilIntensity = Math.max(0.1, 0.2 * distanceFactor)
+        const sprayDir = camDir.clone()
+            .add(right.multiplyScalar(pattern.x * recoilIntensity))
+            .add(up.multiplyScalar(pattern.y * recoilIntensity))
+            .normalize();
+
+        const horizontalKick = pattern.x * recoilIntensity / 2
+        verticalKick *= 2.5 * recoilIntensity
+        this.controls.applyRecoil(horizontalKick, verticalKick)
+
+        //Random bloom
+        const bloomScale = this.shotCount * 0.03; // Gets wider every shot
+        const randomX = (Math.random() - 0.5) * bloomScale;
+        const randomY = (Math.random() - 0.5) * bloomScale;
+
+        sprayDir.add(right.multiplyScalar(randomX)).add(up.multiplyScalar(randomY)).normalize();
+
+        const bulletRay = new RAPIER.Ray(camPos, sprayDir);
 
         const hit = this.world.castRayAndGetNormal(bulletRay, 
                                         1000, 
@@ -153,19 +248,26 @@ export class Player {
         const targetPoint = new THREE.Vector3();
 
         if (hit && !isNaN(hit.timeOfImpact)) {
-            targetPoint.copy(camPos).add(camDir.clone().multiplyScalar(hit.timeOfImpact));
+            targetPoint.copy(camPos).add(sprayDir.clone().multiplyScalar(hit.timeOfImpact));
 
             const hitNormal = new THREE.Vector3(hit.normal.x, hit.normal.y, hit.normal.z)
 
             this.createImpactDot(targetPoint, hitNormal)
         } else {
-            targetPoint.copy(camPos).add(camDir.clone().multiplyScalar(100));
+            targetPoint.copy(camPos).add(sprayDir.clone().multiplyScalar(100));
         }
-        this.createBulletTracer(muzzlePos, targetPoint);
 
         this.recoilVelocity.z += 0.15; // Kick back
         this.recoilVelocity.y += 0.08; // Kick up
         this.recoilVelocity.x += (Math.random() - 0.5) * 0.05; // Random horizontal jitter
+
+        this.gun.updateMatrixWorld(true); 
+
+        // 2. NOW get the muzzle position
+        const muzzlePosition = this.getMuzzleWorldPosition();
+
+        // 3. Create the tracer
+        this.createBulletTracer(muzzlePosition, targetPoint);
     }
 
     createImpactDot(point, normal) {
@@ -185,7 +287,7 @@ export class Player {
         gsap.to(material, {
             opacity: 0,
             delay: 8,        // Stay solid for 3 seconds
-            duration: 1,     // Then take 2 seconds to fade
+            duration: 1.5,     // Then take 2 seconds to fade
             onComplete: () => {
                 this.scene.remove(dot);
                 geometry.dispose();
@@ -198,19 +300,37 @@ export class Player {
         const travelDistance = start.distanceTo(end);
         if (travelDistance < 0.1) return;
 
-        // Create a simple white tracer (cylinder)
-        const tracerLength = 2.0;
-        const geometry = new THREE.CylinderGeometry(0.01, 0.01, tracerLength, 5);
-        const material = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: false });
+        const tracerLength = 3.0; 
+        const geometry = new THREE.CylinderGeometry(0.005, 0.02, tracerLength, 8);
+        const material = new THREE.MeshStandardMaterial({ 
+            color: 0xffffff,
+            emissive: 0xffcc00,
+            emissiveIntensity: 5,
+            transparent: true,
+            blending: THREE.AdditiveBlending 
+        });
+
         const tracer = new THREE.Mesh(geometry, material);
 
-        // Initial setup: place at muzzle and point to target
+        // --- ALIGNMENT FIX START ---
+        // 1. Position at start
         tracer.position.copy(start);
-        tracer.lookAt(end);
-        tracer.rotateX(Math.PI / 2); // Align cylinder axis
+
+        // 2. Calculate the direction vector from start to end
+        const direction = new THREE.Vector3().subVectors(end, start).normalize();
+
+        // 3. Align the cylinder (which is Y-up by default) to the direction vector
+        const axis = new THREE.Vector3(0, 1, 0); 
+        tracer.quaternion.setFromUnitVectors(axis, direction);
+        
+        // 4. Shift the mesh so the "back" of the tracer is at the start point, not the middle
+        // This ensures it doesn't look like it's spawning "behind" the gun
+        tracer.translateY(tracerLength / 2);
+        // --- ALIGNMENT FIX END ---
+
         this.scene.add(tracer);
 
-        const bulletSpeed = 120; // Units per second
+        const bulletSpeed = 200; 
         let distanceCovered = 0;
         let lastTime = performance.now();
 
@@ -221,7 +341,6 @@ export class Player {
             distanceCovered += bulletSpeed * deltaTime;
             const progress = distanceCovered / travelDistance;
 
-            // STOP LOGIC: If progress >= 1, the bullet hit the collider
             if (progress >= 1.0) {
                 this.scene.remove(tracer);
                 geometry.dispose();
@@ -229,8 +348,12 @@ export class Player {
                 return; 
             }
 
-            // Move the bullet along the path
-            tracer.position.lerpVectors(start, end, progress);
+            // Move the tracer along the path
+            // We use the start/end points but offset by half length to keep the "tip" on target
+            const currentPos = new THREE.Vector3().lerpVectors(start, end, progress);
+            tracer.position.copy(currentPos);
+
+            if (progress > 0.8) material.opacity = 1 - ((progress - 0.8) / 0.2);
 
             requestAnimationFrame(animate);
         };
@@ -254,7 +377,7 @@ export class Player {
         let keys = this.controls.update(gameActive)
         let speed = (keys.shift) ? 7.0 : 5.0
 
-        if (keys.shooting) this.shoot()
+        if (keys.isFiring) this.shoot()
 
         this.applyWeaponSway(delta)
 
