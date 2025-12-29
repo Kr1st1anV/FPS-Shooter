@@ -12,12 +12,14 @@ export class WeaponSystem {
         this.fireRate = 150;
         this.lastShotTime = 0;
         this.shotCount = 0;
+        this.ammoLeft = 30
+        this.fullAmmo = 30
         this.isReloading = false;
 
         // Assets
         const flashCanvas = document.getElementById('muzzle-flash-canvas');
         this.muzzleFlashTexture = new THREE.CanvasTexture(flashCanvas);
-        this.muzzleLight = new THREE.PointLight(0xffaa00, 15, 0);
+        this.muzzleLight = new THREE.PointLight(0xffaa00, 0.1, 0);
         this.muzzleLight.visible = false;
         this.scene.add(this.muzzleLight);
 
@@ -29,15 +31,59 @@ export class WeaponSystem {
         ];
     }
 
-    shoot(gun, charBody, onRecoil) {
-        if (!gun || this.isReloading) return;
+    updateUI() {
+        const currentAmmoEl = document.getElementById('current-ammo');
+        const totalAmmoEl = document.getElementById('total-ammo');
+        const ammoBar = document.getElementById('ammo-bar');
+        const reloadPrompt = document.getElementById('reload-prompt');
 
+        if (!currentAmmoEl || !ammoBar) return;
+
+        // 1. Update Text
+        currentAmmoEl.innerText = this.ammoLeft;
+        totalAmmoEl.innerText = this.fullAmmo;
+
+        // 2. Update Progress Bar
+        const circumference = 2 * Math.PI * 35; // 220
+        const offset = circumference - (this.ammoLeft / this.fullAmmo) * circumference;
+        ammoBar.style.strokeDashoffset = offset;
+
+        // 3. Visual Feedback for Low Ammo
+        if (this.ammoLeft <= this.fullAmmo * 0.25) {
+            ammoBar.style.stroke = "#ff3366"; // Turn red when low
+            reloadPrompt.style.opacity = "1";
+        } else {
+            ammoBar.style.stroke = "#00ffcc"; // Neon Cyan
+            reloadPrompt.style.opacity = "0";
+        }
+
+        // 4. Punch Animation on shoot (using GSAP)
+        gsap.fromTo("#current-ammo", 
+            { scale: 1.2, color: "#00ffcc" }, 
+            { scale: 1, color: "white", duration: 0.1 }
+        );
+    }
+
+    shoot(gun, charBody, onRecoil, currentVelocity) {
+        if (!gun || this.isReloading) return;
+        if (this.ammoLeft <= 0) return
         const now = performance.now();
         if (now - this.lastShotTime < this.fireRate) return;
 
         // Reset shot count if player hasn't fired in a while
         if (now - this.lastShotTime > 250) this.shotCount = 0;
         this.lastShotTime = now;
+
+        const speed = new THREE.Vector3(currentVelocity.x, 0, currentVelocity.z).length();
+    
+        // Define how much movement affects accuracy
+        const moveErrorThreshold = 0.1; // Speed below this is considered "standing still"
+        const moveErrorIntensity = 0.02; // How much the circle expands per unit of speed
+
+        let movementBloom = 0;
+        if (speed > moveErrorThreshold) {
+            movementBloom = speed * moveErrorIntensity;
+        }
 
         let pattern;
         let verticalKick;
@@ -52,6 +98,8 @@ export class WeaponSystem {
             pattern = { x: Math.cos(this.shotCount * 0.8) * bulletPatternWidth, y: 0.02 };
         }
         this.shotCount++;
+        this.ammoLeft--;
+        this.updateUI();
 
         // 2. Setup Camera Vectors
         const camPos = new THREE.Vector3();
@@ -69,18 +117,12 @@ export class WeaponSystem {
         let distanceFactor = THREE.MathUtils.clamp(5 / dist, 0, 1.8);
         const recoilIntensity = Math.max(0.1, 0.5 * distanceFactor);
 
-        // 4. RANDOM BULLET SPREAD (BLOOM)
-        // We use polar coordinates to ensure a circular spread pattern
-        const maxBloom = 0.005; // Maximum possible spread radius
-        const bloomIncr = 0.005; // How much spread increases per shot
-        
-        // Calculate current spread radius
-        const currentSpread = Math.min(this.shotCount * bloomIncr, maxBloom);
-        
-        // Circular Randomization
+        const baseBloom = 0.001; // Natural inaccuracy even when standing
+        const totalSpreadRadius = (this.shotCount * baseBloom) + movementBloom;
+
+        // Circular Randomization (Uniform Distribution)
         const angle = Math.random() * Math.PI * 2;
-        // Using Math.sqrt(Math.random()) gives a uniform distribution across the circle
-        const radius = Math.sqrt(Math.random()) * currentSpread; 
+        const radius = Math.sqrt(Math.random()) * totalSpreadRadius * 0.5; 
         
         const randomX = Math.cos(angle) * radius;
         const randomY = Math.sin(angle) * radius;
@@ -99,6 +141,8 @@ export class WeaponSystem {
         if (hit && !isNaN(hit.timeOfImpact)) {
             targetPoint.copy(camPos).add(sprayDir.clone().multiplyScalar(hit.timeOfImpact));
             this.createImpactDot(targetPoint, new THREE.Vector3(hit.normal.x, hit.normal.y, hit.normal.z));
+
+            this.showHitmarker()
         } else {
             targetPoint.copy(camPos).add(sprayDir.clone().multiplyScalar(100));
         }
@@ -110,8 +154,20 @@ export class WeaponSystem {
 
         // Visuals
         const muzzlePos = this.getMuzzleWorldPosition(gun);
-        this.createMuzzleFlash(muzzlePos);
+        this.createMuzzleFlash(gun);
         this.createBulletTracer(muzzlePos, targetPoint);
+    }
+
+    showHitmarker() {
+        const hm = document.getElementById('hitmarker-container');
+        // Reset any ongoing animation
+        gsap.killTweensOf(hm);
+        
+        // Snap to visible and slightly larger, then fade/shrink
+        gsap.fromTo(hm, 
+            { opacity: 1, scale: 1.2 }, 
+            { opacity: 0, scale: 0.8, duration: 0.15, ease: "power2.out" }
+        );
     }
 
     reload(gun, restingPos, camera) {
@@ -151,16 +207,34 @@ export class WeaponSystem {
             ease: "back.out(1.2)" 
         });
         tl.to(gun.rotation, { x: 0, z: 0, duration: 0.3 }, "-=0.3");
+        this.ammoLeft = this.fullAmmo
+        this.updateUI();
     }
 
-    createMuzzleFlash(pos) {
-        this.muzzleLight.position.copy(pos);
+    createMuzzleFlash(gun) {
+        const muzzlePos = this.getMuzzleWorldPosition(gun);
+        this.muzzleLight.position.copy(muzzlePos);
         this.muzzleLight.visible = true;
-        const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: this.muzzleFlashTexture, blending: THREE.AdditiveBlending }));
-        sprite.scale.set(0.5, 0.5, 0.5);
-        sprite.position.copy(pos);
-        this.scene.add(sprite);
-        setTimeout(() => { this.muzzleLight.visible = false; this.scene.remove(sprite); }, 40);
+
+        const spriteMaterial = new THREE.SpriteMaterial({ 
+            map: this.muzzleFlashTexture, 
+            blending: THREE.AdditiveBlending,
+            transparent: true
+        });
+        const sprite = new THREE.Sprite(spriteMaterial);
+        
+        gun.add(sprite); 
+
+        sprite.position.set(0, 0.08, -0.44); 
+        sprite.scale.set(0.4, 0.4, 0.4);
+        
+        sprite.material.rotation = Math.random() * Math.PI;
+
+        setTimeout(() => { 
+            this.muzzleLight.visible = false; 
+            gun.remove(sprite);
+            spriteMaterial.dispose();
+        }, 45);
     }
 
     getMuzzleWorldPosition(gun) {

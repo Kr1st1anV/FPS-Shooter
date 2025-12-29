@@ -16,6 +16,26 @@
             <div class="dot"></div>
         </div>
     </div>
+    <div id="ammo-container">
+        <div class="ammo-svg-wrapper">
+            <svg width="80" height="80">
+                <circle class="ammo-bg" cx="40" cy="40" r="35"></circle>
+                <circle id="ammo-bar" cx="40" cy="40" r="35"></circle>
+            </svg>
+            <div class="ammo-text">
+                <span id="current-ammo">30</span>
+                <span class="ammo-separator">/</span>
+                <span id="total-ammo">30</span>
+            </div>
+        </div>
+        <div id="reload-prompt">PRESS 'R' TO RELOAD</div>
+    </div>
+    <div id="hitmarker-container">
+        <div class="hit-line tl"></div>
+        <div class="hit-line tr"></div>
+        <div class="hit-line bl"></div>
+        <div class="hit-line br"></div>
+    </div>
     <canvas id="muzzle-flash-canvas" width="64" height="64" style="display: none;"></canvas>
     <script>
         (function() {

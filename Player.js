@@ -55,7 +55,7 @@ export class Player {
     }
 
     async buildChar() {
-        this.charBodyDesc = RAPIER.RigidBodyDesc.kinematicPositionBased().setTranslation(0,30,0)
+        this.charBodyDesc = RAPIER.RigidBodyDesc.kinematicPositionBased().setTranslation(0,2.5,0)
         this.charBody = this.world.createRigidBody(this.charBodyDesc)
 
         this.charColliderDesc = RAPIER.ColliderDesc.capsule(this.currentHeight/2, this.radius).setCollisionGroups(0x00010002)
@@ -150,14 +150,15 @@ export class Player {
         let keys = this.controls.update(gameActive)
         let speed = (keys.shift) ? 7.0 : 5.0
 
-        const isFiringThisFrame = keys.isFiring && !this.weaponSystem.isReloading
+        const isFiringThisFrame = (keys.isFiring && !this.weaponSystem.isReloading) && this.weaponSystem.ammoLeft > 0
+        const velocity = this.charBody.linvel()
 
         if (keys.isFiring) {
-            this.weaponSystem.shoot(this.gun, this.charBody, (hKick, vKick) => {
-                this.controls.applyRecoil(hKick, vKick)
-                this.recoilVelocity.z += 0.15
-                this.recoilVelocity.y += 0.08
-            })
+            this.weaponSystem.shoot(this.gun, 
+                                    this.charBody, 
+                                    (hKick, vKick) => this.controls.applyRecoil(hKick, vKick),
+                                    velocity
+            )
         
         }
 

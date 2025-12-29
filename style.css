@@ -65,3 +65,95 @@ body {margin: 0;}
     --crosshair-gap: 10px;
     transition: all 0.1s ease-out;
 }
+#ammo-container {
+    position: absolute;
+    bottom: 40px;
+    right: 40px;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    color: white;
+    text-align: right;
+    user-select: none;
+}
+
+.ammo-svg-wrapper {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+svg {
+    transform: rotate(-90deg); /* Start the bar from the top */
+}
+
+.ammo-bg {
+    fill: none;
+    stroke: rgba(255, 255, 255, 0.1);
+    stroke-width: 6;
+}
+
+#ammo-bar {
+    fill: none;
+    stroke: #00ffcc; /* Neon Cyan */
+    stroke-width: 6;
+    stroke-linecap: round;
+    transition: stroke-dashoffset 0.2s ease, stroke 0.3s ease;
+    stroke-dasharray: 220; /* Circumference (2 * PI * r) */
+    stroke-dashoffset: 0;
+}
+
+.ammo-text {
+    position: absolute;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    line-height: 1;
+}
+
+#current-ammo {
+    font-size: 28px;
+    font-weight: bold;
+}
+
+.ammo-separator {
+    font-size: 12px;
+    opacity: 0.5;
+    margin: 2px 0;
+}
+
+#total-ammo {
+    font-size: 16px;
+    opacity: 0.8;
+}
+
+#reload-prompt {
+    font-size: 12px;
+    margin-top: 10px;
+    letter-spacing: 2px;
+    color: #ff3366; /* Redish-pink */
+    opacity: 0;
+    transition: opacity 0.3s ease;
+}
+
+#hitmarker-container {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 20px;
+    height: 20px;
+    transform: translate(-50%, -50%) rotate(45deg);
+    pointer-events: none;
+    opacity: 0;
+}
+
+.hit-line {
+    position: absolute;
+    background-color: white;
+    border-radius: 2px;
+}
+
+
+.tl { width: 2px; height: 8px; top: 0; left: 0; }
+.tr { width: 8px; height: 2px; top: 0; right: 0; }
+.bl { width: 8px; height: 2px; bottom: 0; left: 0; }
+.br { width: 2px; height: 8px; bottom: 0; right: 0; }
