@@ -154,7 +154,7 @@ export class WeaponSystem {
 
         // We store the original idle position to return to it perfectly
         const idlePos = this.player.gunBasePos[this.currentWeapon];
-        const idleRot = { x: 0, y: 0, z: 0 };
+        const idleRot = { x: 0, y: -Math.PI/2, z: 0 };
 
         const tl = gsap.timeline();
 
@@ -245,21 +245,175 @@ export class WeaponSystem {
         this.currentWeapon = index;
         const newWeapon = this.weapons[this.currentWeapon].model;
         newWeapon.visible = true;
+        if (this.weapons[this.currentWeapon].type === 'knife') {
+            this.playKnifeDraw(newWeapon);
+        } else {
+            this.playDrawAnimation(newWeapon);
+        }
+    }
 
-        // 3. Trigger the Draw Animation
-        this.playDrawAnimation(newWeapon);
+    inspectWeapon(gun, type) {
+        if (this.isReloading || this.isInspecting) return;
+        this.isInspecting = true;
+
+        // Use a single timeline for synchronized smoothness
+        const tl = gsap.timeline({
+            onComplete: () => { this.isInspecting = false; }
+        });
+
+        const idlePos = this.player.gunBasePos[this.currentWeapon]
+
+        if (type === 'knife') {
+            // 1. THE LIFT (Anticipation)
+            // Move the knife slightly center-screen and tilt up
+            tl.to(gun.position, {
+                y: idlePos.y + 0.15,
+                x: 0, 
+                z: idlePos.z - 0.1,
+                duration: 0.4,
+                ease: "power2.inOut"
+            });
+            tl.to(gun.rotation, {
+                x: -Math.PI / 4,
+                duration: 0.4,
+                ease: "power2.inOut"
+            }, 0);
+
+            // 2. THE TOSS & MULTI-AXIS SPIN
+            // We use 'Sine.inOut' for the rotation to make it feel fluid
+            tl.to(gun.position, {
+                y: "+=0.2",
+                duration: 0.3,
+                yoyo: true,
+                repeat: 1,
+                ease: "sine.inOut"
+            }, "-=0.1");
+
+            tl.to(gun.rotation, {
+                y: "+=" + (Math.PI * 4), // Two full spins
+                x: "+=" + (Math.PI * 2), // One flip
+                duration: 0.8,
+                ease: "power3.inOut" // Starts slow, spins fast, ends slow
+            }, "-=0.5");
+
+            // 3. THE CATCH
+            // Returns to original position with a "Back" ease for weight
+            tl.to(gun.position, {
+                x: idlePos.x,
+                y: idlePos.y,
+                z: idlePos.z,
+                duration: 0.5,
+                ease: "back.out(1.5)"
+            }, "-=0.2");
+
+            tl.to(gun.rotation, {
+                x: Math.PI / 3,
+                y: 0,
+                z: 0,
+                duration: 0.5,
+                ease: "power2.out"
+            }, "-=0.5");
+
+            // 4. MICRO-VIBRATION (The "Grip" impact)
+            tl.to(gun.position, {
+                x: "+=0.005",
+                y: "+=0.005",
+                duration: 0.03,
+                yoyo: true,
+                repeat: 5
+            }, "-=0.1");
+
+        } else {
+            // --- SMOOTH GUN CHECK ---
+            // Instead of a stiff turn, we do a "Sway" motion
+            tl.to(gun.position, {
+                x: -0.1,
+                y: 0,
+                z: -0.3,
+                duration: 0.8,
+                ease: "power3.inOut"
+            });
+            
+            tl.to(gun.rotation, {
+                x: 0.3,
+                y: -1.2, // Show the side of the gun
+                z: 0.4,
+                duration: 0.8,
+                ease: "power3.inOut"
+            }, 0);
+
+            // Gentle breathing motion while looking
+            tl.to(gun.position, {
+                y: "+=0.02",
+                duration: 1.5,
+                yoyo: true,
+                repeat: 1,
+                ease: "sine.inOut"
+            });
+
+            // Return
+            tl.to(gun.position, { x: idlePos.x, y: idlePos.y, z: idlePos.z, duration: 0.6, ease: "power3.inOut" });
+            tl.to(gun.rotation, { x: 0, y: 0, z: 0, duration: 0.6, ease: "power3.inOut" }, "-=0.6");
+        }
+    }
+
+    playKnifeDraw(knife) {
+        const idlePos = this.player.gunBasePos[this.currentWeapon];
+        const idleRot = { x: 0, y: -Math.PI / 2, z: 0 };
+
+        // 1. Set Start State: Knife is low and tilted sideways
+        knife.position.set(idlePos.x + 0.2, idlePos.y - 1.2, idlePos.z);
+        // Start with a heavy tilt so the spin looks more dramatic
+        knife.rotation.set(Math.PI, -Math.PI, Math.PI / 2);
+
+        const tl = gsap.timeline();
+
+        // 2. THE FLIP-UP
+        tl.to(knife.position, {
+            x: idlePos.x,
+            y: idlePos.y,
+            z: idlePos.z,
+            duration: 0.5,
+            ease: "back.out(1.7)" // Strong "pop" into place
+        });
+
+        // 3. THE SPIN (Multi-axis rotation)
+        tl.to(knife.rotation, {
+            x: idleRot.x,
+            y: -Math.PI / 2, // We spin through Y
+            z: 0, 
+            duration: 0.6,
+            ease: "power4.out",
+            onStart: () => {
+                // Add a rapid 360-degree spin to the Y axis during the draw
+                gsap.fromTo(knife.rotation, 
+                    { y: -Math.PI * 2 }, 
+                    { y: -Math.PI / 2, duration: 0.5, ease: "circ.out" }
+                );
+            }
+        }, "-=0.5");
+
+        // 4. THE "CATCH" SHAKE
+        // A tiny vibration at the end makes it feel like the player gripped it hard
+        tl.to(knife.position, {
+            x: "+=0.01",
+            y: "-=0.01",
+            duration: 0.05,
+            yoyo: true,
+            repeat: 3
+        });
     }
 
     playDrawAnimation(gun) {
         // Define the resting position (where the gun usually sits)
         const restingPos = this.player.gunBasePos[this.currentWeapon];
 
-        if (this.weapons[this.currentWeapon].type === "knife") {
-            gsap.to(gun.rotation, { y: Math.PI * 2, duration: 0.5, ease: "power2.inOut" });
-            gsap.to(gun.position, { y: restingPos.y, duration: 0.4, ease: "back.out(2)" });
-            gun.rotation.set(0,0,0)
-            return
-        }
+        // if (this.weapons[this.currentWeapon].type === "knife") {
+        //     gsap.to(gun.rotation, { y: Math.PI * 2, duration: 0.5, ease: "power2.inOut" });
+        //     gsap.to(gun.position, { y: restingPos.y, duration: 0.4, ease: "back.out(2)" });
+        //     gun.rotation.set(0,0,0)
+        //     return
+        // }
         
         // Set starting position (Below the screen and tilted)
         gun.position.set(restingPos.x, restingPos.y - 1.0, restingPos.z);

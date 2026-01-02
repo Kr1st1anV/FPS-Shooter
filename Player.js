@@ -51,7 +51,7 @@ export class Player {
         this.wasGrounded = true
 
         // Define your "Resting Position"
-        this.gunBasePos = [new THREE.Vector3(0.16,-0.18,-0.3), new THREE.Vector3(0.3,-0.3,-1.5)] //new THREE.Vector3(1.25,-0.98,-1.8)
+        this.gunBasePos = [new THREE.Vector3(0.16,-0.18,-0.3), new THREE.Vector3(0.7,-0.3,-1.3)] //new THREE.Vector3(1.25,-0.98,-1.8)
 
         this.gameStartGunReset = true
         
@@ -203,6 +203,12 @@ export class Player {
 
         if (keys.r) {
             this.weaponSystem.reload(this.gun[this.currentWeapon], this.gunBasePos[this.currentWeapon], this.camera, this.weaponSystem.weapons[this.currentWeapon].type);
+        }
+
+        // Inside Player.js update()
+        if (keys.inspect) {
+            const currentWeapon = this.weaponSystem.weapons[this.currentWeapon];
+            this.weaponSystem.inspectWeapon(currentWeapon.model, currentWeapon.type);
         }
 
         this.applyWeaponSway(delta)

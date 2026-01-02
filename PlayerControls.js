@@ -8,7 +8,7 @@ export class PlayerControls {
         this.playerMesh = player.charMesh
         this.player = player
         
-        this.defaultKeys = {w: false, s: false, a: false, d:false, r: false, space:false, shift:false, crouch:false, isFiring: false}
+        this.defaultKeys = {w: false, s: false, a: false, d:false, r: false, inspect: false, space:false, shift:false, crouch:false, isFiring: false}
         this.keys = { ...this.defaultKeys }
         
         // Spherical Coordinates
@@ -40,6 +40,7 @@ export class PlayerControls {
                 if (e.code === "Space") this.keys.space = true
                 if (e.code === "ShiftLeft") this.keys.shift = true
                 if (e.code === "ControlLeft") this.keys.crouch = true
+                if (e.code === "KeyF") this.keys.inspect = true
                 if (e.code === "Slash") this.isFPS = !this.isFPS
                 else this.keys[e.key.toLowerCase()] = true
             }
@@ -49,6 +50,7 @@ export class PlayerControls {
             if (this.gameActive) {
                 if (e.code === "Space") this.keys.space = false
                 if (e.code === "ShiftLeft") this.keys.shift = false
+                if (e.code === "KeyF") this.keys.inspect = false
                 if (e.code === "ControlLeft") this.keys.crouch = false
                 else this.keys[e.key.toLowerCase()] = false
             }
