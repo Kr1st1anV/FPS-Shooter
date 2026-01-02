@@ -11,6 +11,7 @@ export class WeaponSystem {
         this.charBody = player.charBody;
 
         this.weapons = [];
+        this.currentWeapon = 0;
 
         this.fireRate = 150;
         this.lastShotTime = 0;
@@ -51,18 +52,6 @@ export class WeaponSystem {
         const totalAmmoEl = document.getElementById('total-ammo');
         const ammoBar = document.getElementById('ammo-bar');
         const reloadPrompt = document.getElementById('reload-prompt');
-
-        if (this.weapons[this.currentWeapon].type === "knife") {
-            ammoBar.hidden = true
-            currentAmmoEl.hidden = true
-            totalAmmoEl.hidden = true
-            reloadPrompt.hidden = true
-        } else {
-            ammoBar.hidden = false
-            currentAmmoEl.hidden = false
-            totalAmmoEl.hidden = false
-            reloadPrompt.hidden = false
-        }
 
         if (!currentAmmoEl || !ammoBar) return;
 
@@ -268,6 +257,7 @@ export class WeaponSystem {
         if (this.weapons[this.currentWeapon].type === "knife") {
             gsap.to(gun.rotation, { y: Math.PI * 2, duration: 0.5, ease: "power2.inOut" });
             gsap.to(gun.position, { y: restingPos.y, duration: 0.4, ease: "back.out(2)" });
+            gun.rotation.set(0,0,0)
             return
         }
         
@@ -584,5 +574,12 @@ export class WeaponSystem {
 
     update() {
         this.currentWeapon = this.player.currentWeapon
+        const ammo = document.getElementById('ammo-container');
+        if (!this.weapons.length > 0) return
+        if (this.weapons[this.currentWeapon].type === "knife") {
+            ammo.style.display = "none"
+        } else {
+            ammo.style.display = "block"
+        }
     }
 }

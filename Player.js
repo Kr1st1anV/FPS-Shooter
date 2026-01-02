@@ -116,7 +116,6 @@ export class Player {
                 this.gun.push(knife);
 
                 // X: right/left, Y: up/down, Z: forward/back (negative is in front of camera)
-                this.currentWeapon += 1
                 knife.position.set(this.gunBasePos[this.currentWeapon].x,this.gunBasePos[this.currentWeapon].y,this.gunBasePos[this.currentWeapon].z); 
                 knife.scale.set(0.5,0.5,0.5);
                 
@@ -133,7 +132,6 @@ export class Player {
                 });
             }
         );
-        this.currentWeapon = 0
     }
 
     applyWeaponSway(delta) {

@@ -91,7 +91,7 @@ export class PlayerControls {
         document.addEventListener("wheel", (e) => {
             if (!this.gameActive) return 
             const oldIndex = this.player.currentWeapon
-            const newIndex = Math.max(Math.min(this.player.currentWeapon - e.deltaY/100, this.player.weaponSystem.weapons.length - 1), 0)
+            const newIndex = Math.max(Math.min(this.player.currentWeapon + e.deltaY/100, this.player.weaponSystem.weapons.length - 1), 0)
             if (oldIndex === newIndex) return
             this.player.currentWeapon = newIndex
             this.player.weaponSystem.switchWeapon(newIndex)
