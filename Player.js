@@ -31,10 +31,14 @@ export class Player {
 
         this.forwardsDirection = new THREE.Vector3()
         this.rightDirection = new THREE.Vector3()
-        this.buildChar()
-        this.controls = new PlayerControls(this.camera, this.scene, this.charMesh, this)
 
-        this.weaponSystem = new WeaponSystem(this.scene, this.world, this.camera, this.charBody)
+        this.gun = []
+        this.currentWeapon = 0;
+
+        this.buildChar()
+
+        this.controls = new PlayerControls(this.camera, this.scene, this)
+        this.weaponSystem = new WeaponSystem(this.scene, this.world, this.camera, this)
 
         // Head Bobbing
         this.headBob = false
@@ -47,7 +51,9 @@ export class Player {
         this.wasGrounded = true
 
         // Define your "Resting Position"
-        this.gunBasePos = new THREE.Vector3(0.16,-0.18,-0.3);
+        this.gunBasePos = [new THREE.Vector3(0.16,-0.18,-0.3), new THREE.Vector3(0.3,-0.3,-1.5)] //new THREE.Vector3(1.25,-0.98,-1.8)
+
+        this.gameStartGunReset = true
         
         //Gun recoil
         this.recoilOffset = new THREE.Vector3();
@@ -55,7 +61,7 @@ export class Player {
     }
 
     async buildChar() {
-        this.charBodyDesc = RAPIER.RigidBodyDesc.kinematicPositionBased().setTranslation(0,2.5,0)
+        this.charBodyDesc = RAPIER.RigidBodyDesc.kinematicPositionBased().setTranslation(Math.random() * 50 -25 ,25,Math.random() * 50 -25)
         this.charBody = this.world.createRigidBody(this.charBodyDesc)
 
         this.charColliderDesc = RAPIER.ColliderDesc.capsule(this.currentHeight/2, this.radius).setCollisionGroups(0x00010002)
@@ -77,15 +83,17 @@ export class Player {
             '/gun_models/scene.gltf', 
             (gltf) => {
                 const gun = gltf.scene;
+                gun.visible = false
+                this.camera.add(gun);
+                this.weaponSystem.weapons.push({ name: "AK", type: "gun", fireRate: 150, model: gun}) 
                 
-                this.camera.add(gun); 
-                this.gun = gun;
+                this.gun.push(gun);
 
                 // X: right/left, Y: up/down, Z: forward/back (negative is in front of camera)
-                gun.position.set(0.16,-0.18,-0.3); 
+                gun.position.set(this.gunBasePos[this.currentWeapon].x,this.gunBasePos[this.currentWeapon].y,this.gunBasePos[this.currentWeapon].z); 
                 // gun.scale.set(0.5, 0.5, 0.5);
                 
-                //gun.rotation.set(0, Math.PI, 0); 
+                gun.rotation.set(0, -Math.PI/2, 0); 
                 
                 gun.traverse(child => {
                     if (child.isMesh) {
@@ -98,10 +106,38 @@ export class Player {
                 });
             }
         );
+        loader.load(
+            '/knife_model/scene.gltf', 
+            (gltf) => {
+                const knife = gltf.scene;
+                knife.visible = false
+                this.weaponSystem.weapons.push({ name: "Knife", type: "knife", fireRate: 400, model: knife}) 
+                this.camera.add(knife); 
+                this.gun.push(knife);
+
+                // X: right/left, Y: up/down, Z: forward/back (negative is in front of camera)
+                this.currentWeapon += 1
+                knife.position.set(this.gunBasePos[this.currentWeapon].x,this.gunBasePos[this.currentWeapon].y,this.gunBasePos[this.currentWeapon].z); 
+                knife.scale.set(0.5,0.5,0.5);
+                
+                knife.rotation.set(0, -Math.PI/2, 0); 
+                
+                knife.traverse(child => {
+                    if (child.isMesh) {
+                        child.frustumCulled = false;
+                        child.layers.set(0)
+                        //child.material.depthTest = false
+                        child.renderOrder = 999
+                        
+                    }
+                });
+            }
+        );
+        this.currentWeapon = 0
     }
 
     applyWeaponSway(delta) {
-        if (!this.gun) return;
+        if (this.gun.length == 0) return;
 
         // We multiply the velocity and offset by a factor less than 1.0 every frame
         this.recoilVelocity.multiplyScalar(0.9); // Friction
@@ -117,19 +153,19 @@ export class Player {
             bobX = Math.sin(this.headBobTimer * 0.5) * 0.015;
             bobY = Math.cos(this.headBobTimer) * 0.01;
         }
-        this.gun.position.x = THREE.MathUtils.lerp(
-            this.gun.position.x, 
-            this.gunBasePos.x + bobX + this.recoilOffset.x * 0.2, 
+        this.gun[this.currentWeapon].position.x = THREE.MathUtils.lerp(
+            this.gun[this.currentWeapon].position.x, 
+            this.gunBasePos[this.currentWeapon].x + bobX + this.recoilOffset.x * 0.2, 
             0.11
         );
-        this.gun.position.y = THREE.MathUtils.lerp(
-            this.gun.position.y, 
-            this.gunBasePos.y + bobY - this.jumpOffset + this.recoilOffset.y * 0.05, 
+        this.gun[this.currentWeapon].position.y = THREE.MathUtils.lerp(
+            this.gun[this.currentWeapon].position.y, 
+            this.gunBasePos[this.currentWeapon].y + bobY - this.jumpOffset + this.recoilOffset.y * 0.05, 
             0.11
         );
-        this.gun.position.z = THREE.MathUtils.lerp(
-            this.gun.position.z, 
-            this.gunBasePos.z + this.recoilOffset.z * 0.12, 
+        this.gun[this.currentWeapon].position.z = THREE.MathUtils.lerp(
+            this.gun[this.currentWeapon].position.z, 
+            this.gunBasePos[this.currentWeapon].z + this.recoilOffset.z * 0.12, 
             0.9
         );
     }
@@ -142,6 +178,10 @@ export class Player {
     }
 
     async update(delta, gameActive) {
+        if (this.gameStartGunReset && this.weaponSystem.weapons.length > 0) {
+            this.weaponSystem.switchWeapon(0)
+            this.gameStartGunReset = false
+        }
         this.gameActive = gameActive
         if (this.lastPosition == this.charMesh.position) {
             document.querySelector('.crosshair').classList.remove('moving');
@@ -154,16 +194,17 @@ export class Player {
         const velocity = this.charBody.linvel()
 
         if (keys.isFiring) {
-            this.weaponSystem.shoot(this.gun, 
+            this.weaponSystem.shoot(this.gun[this.currentWeapon], 
                                     this.charBody, 
                                     (hKick, vKick) => this.controls.applyRecoil(hKick, vKick),
-                                    velocity
+                                    velocity,
+                                    this.weaponSystem.weapons[this.currentWeapon].type
             )
         
         }
 
         if (keys.r) {
-            this.weaponSystem.reload(this.gun, this.gunBasePos, this.camera);
+            this.weaponSystem.reload(this.gun[this.currentWeapon], this.gunBasePos[this.currentWeapon], this.camera, this.weaponSystem.weapons[this.currentWeapon].type);
         }
 
         this.applyWeaponSway(delta)
@@ -241,5 +282,6 @@ export class Player {
         this.charMesh.position.z = THREE.MathUtils.lerp(this.charMesh.position.z, this.finalPosition.z, 0.7)
 
         this.controls.updateCamera(delta, isFiringThisFrame)
+        this.weaponSystem.update()
     }
 }

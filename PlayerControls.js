@@ -1,11 +1,11 @@
 import * as THREE from "three"
 
 export class PlayerControls {
-    constructor(camera, scene, playerMesh, player) {
+    constructor(camera, scene, player) {
         this.gameActive = true
         this.camera = camera
         this.scene = scene
-        this.playerMesh = playerMesh
+        this.playerMesh = player.charMesh
         this.player = player
         
         this.defaultKeys = {w: false, s: false, a: false, d:false, r: false, space:false, shift:false, crouch:false, isFiring: false}
@@ -86,6 +86,15 @@ export class PlayerControls {
 
         document.addEventListener("mouseup", (e) => {
             if(e.button === 0 && this.gameActive) this.keys.isFiring = false
+        })
+
+        document.addEventListener("wheel", (e) => {
+            if (!this.gameActive) return 
+            const oldIndex = this.player.currentWeapon
+            const newIndex = Math.max(Math.min(this.player.currentWeapon - e.deltaY/100, this.player.weaponSystem.weapons.length - 1), 0)
+            if (oldIndex === newIndex) return
+            this.player.currentWeapon = newIndex
+            this.player.weaponSystem.switchWeapon(newIndex)
         })
     }
 

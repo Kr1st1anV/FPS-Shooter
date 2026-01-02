@@ -3,11 +3,14 @@ import RAPIER from '@dimforge/rapier3d-compat';
 import gsap from "gsap";
 
 export class WeaponSystem {
-    constructor(scene, world, camera, charBody) {
+    constructor(scene, world, camera, player) {
         this.scene = scene;
         this.world = world;
         this.camera = camera;
-        this.charBody = charBody;
+        this.player = player
+        this.charBody = player.charBody;
+
+        this.weapons = [];
 
         this.fireRate = 150;
         this.lastShotTime = 0;
@@ -17,11 +20,23 @@ export class WeaponSystem {
         this.isReloading = false;
 
         // Assets
+        this.jaggedTexture = this.createJaggedMuzzleTexture();
+
         const flashCanvas = document.getElementById('muzzle-flash-canvas');
         this.muzzleFlashTexture = new THREE.CanvasTexture(flashCanvas);
-        this.muzzleLight = new THREE.PointLight(0xffaa00, 0.1, 0);
+        // Replace PointLight with SpotLight
+        this.muzzleLight = new THREE.SpotLight(0xffaa00, 5); // Color and Intensity
+        this.muzzleLight.angle = Math.PI / 4; // Width of the beam (45 degrees)
+        this.muzzleLight.penumbra = 0.3;      // Softness of the edges
+        this.muzzleLight.decay = 2;           // How fast light dims with distance
+        this.muzzleLight.distance = 0;       // How far the light reaches
         this.muzzleLight.visible = false;
+
+        // Important: The light needs a target to know which way to shine
+        this.muzzleLightTarget = new THREE.Object3D();
         this.scene.add(this.muzzleLight);
+        this.scene.add(this.muzzleLightTarget);
+        this.muzzleLight.target = this.muzzleLightTarget;
 
         // Fixed Recoil Pattern (The path the gun kicks)
         this.recoilPattern = [
@@ -36,6 +51,18 @@ export class WeaponSystem {
         const totalAmmoEl = document.getElementById('total-ammo');
         const ammoBar = document.getElementById('ammo-bar');
         const reloadPrompt = document.getElementById('reload-prompt');
+
+        if (this.weapons[this.currentWeapon].type === "knife") {
+            ammoBar.hidden = true
+            currentAmmoEl.hidden = true
+            totalAmmoEl.hidden = true
+            reloadPrompt.hidden = true
+        } else {
+            ammoBar.hidden = false
+            currentAmmoEl.hidden = false
+            totalAmmoEl.hidden = false
+            reloadPrompt.hidden = false
+        }
 
         if (!currentAmmoEl || !ammoBar) return;
 
@@ -64,8 +91,218 @@ export class WeaponSystem {
         );
     }
 
-    shoot(gun, charBody, onRecoil, currentVelocity) {
+    createJaggedMuzzleTexture() {
+        const canvas = document.createElement('canvas');
+        canvas.width = 256;
+        canvas.height = 256;
+        const ctx = canvas.getContext('2d');
+
+        ctx.fillStyle = 'white';
+        ctx.translate(128, 128);
+
+        // Draw several sharp "jagged" spikes
+        for (let i = 0; i < 12; i++) {
+            ctx.rotate((Math.PI * 2) / 12);
+            ctx.beginPath();
+            ctx.moveTo(0, 0);
+            // Randomize length to make it look "angry" and organic
+            const length = 80 + Math.random() * 40;
+            const width = 5 + Math.random() * 10;
+            ctx.lineTo(-width, length * 0.2);
+            ctx.lineTo(0, length);
+            ctx.lineTo(width, length * 0.2);
+            ctx.fill();
+        }
+        return new THREE.CanvasTexture(canvas);
+    }
+
+    createJaggedFlash(gun) {
+        const group = new THREE.Group();
+        
+        // Use a sharp, bright material
+        const material = new THREE.MeshBasicMaterial({
+            map: this.jaggedTexture,
+            transparent: true,
+            blending: THREE.AdditiveBlending,
+            side: THREE.DoubleSide,
+            depthWrite: false
+        });
+
+        const geometry = new THREE.PlaneGeometry(0.25, 0.25);
+
+        // Create a "Cross" shape (two planes at 90 degrees)
+        const p1 = new THREE.Mesh(geometry, material);
+        const p2 = new THREE.Mesh(geometry, material);
+        p2.rotation.y = Math.PI / 2;
+        
+        group.add(p1, p2);
+        
+        // Randomize rotation so every shot looks different
+        group.rotation.z = Math.random() * Math.PI;
+        
+        // Position at muzzle
+        group.position.set(0, 0.08, -0.5);
+        gun.add(group);
+
+        // Flash light logic
+        //this.muzzleLight.visible = true;
+
+        // Remove very quickly (30ms is best for jagged look)
+        setTimeout(() => {
+            gun.remove(group);
+            //this.muzzleLight.visible = false;
+            //this.muzzleLight.position.set(muzzle.x,muzzle.y,muzzle.z)
+            // Don't dispose material here if you reuse it! 
+            // Just remove the mesh.
+        }, 30);
+    }
+
+    swingKnife(knife, charBody) {
+        const now = performance.now();
+        // Preventing spamming too fast; 400ms is a standard "fast" melee rate
+        if (now - this.lastShotTime < 400) return; 
+        this.lastShotTime = now;
+
+        // We store the original idle position to return to it perfectly
+        const idlePos = this.player.gunBasePos[this.currentWeapon];
+        const idleRot = { x: 0, y: 0, z: 0 };
+
+        const tl = gsap.timeline();
+
+        // 1. ANTICIPATION (Pull back slightly)
+        tl.to(knife.position, {
+            x: idlePos.x + 0.1,
+            y: idlePos.y + 0.1,
+            z: idlePos.z + 0.1,
+            duration: 0.1,
+            ease: "power2.out"
+        });
+        tl.to(knife.rotation, {
+            x: -0.2,
+            y: 0.2,
+            duration: 0.1
+        }, "-=0.1");
+
+        // 2. THE SLASH (The Arc)
+        // We move from right-top to left-bottom while pushing forward
+        tl.to(knife.position, {
+            x: idlePos.x - 0.8, // Move across the screen to the left
+            y: idlePos.y - 0.2, // Move downward
+            z: idlePos.z - 0.6, // Thrust forward
+            duration: 0.15,
+            ease: "expo.out"
+        });
+
+        // Twist the blade during the slash
+        tl.to(knife.rotation, {
+            x: 1.2,        // Tilt blade down
+            y: -Math.PI / 3, // Rotate sideways
+            z: -0.5,       // Roll the wrist
+            duration: 0.15,
+            ease: "expo.out"
+        }, "-=0.15");
+
+        // 3. RECOVERY (Return to idle)
+        tl.to(knife.position, {
+            x: idlePos.x,
+            y: idlePos.y,
+            z: idlePos.z,
+            duration: 0.4,
+            ease: "back.out(1.2)" // A slight bounce makes it feel weighty
+        });
+
+        tl.to(knife.rotation, {
+            x: idleRot.x,
+            y: idleRot.y,
+            z: idleRot.z,
+            duration: 0.4,
+            ease: "power2.inOut"
+        }, "-=0.4");
+
+        // HIT DETECTION (Perform the raycast exactly when the slash is mid-way)
+        setTimeout(() => {
+            this.performMeleeRaycast(charBody);
+        }, 100);
+    }
+
+    performMeleeRaycast(charBody) {
+        const camPos = new THREE.Vector3();
+        const camDir = new THREE.Vector3();
+        this.camera.getWorldPosition(camPos);
+        this.camera.getWorldDirection(camDir);
+
+        const knifeRay = new RAPIER.Ray(camPos, camDir);
+        // 2.5 units is a generous "gaming" reach for a knife
+        const hit = this.world.castRay(knifeRay, 2.5, true, undefined, undefined, undefined, charBody);
+
+        if (hit) {
+            this.showHitmarker();
+            gsap.to(this.camera.position, {
+                x: "+=" + (Math.random() - 0.5) * 0.05,
+                y: "+=" + (Math.random() - 0.5) * 0.05,
+                duration: 0.05,
+                yoyo: true,
+                repeat: 1
+            });
+        }
+    }
+
+    switchWeapon(index) {
+        // 1. Hide current weapon
+        const oldWeapon = this.weapons[this.currentWeapon].model;
+        oldWeapon.visible = false;
+
+        // 2. Update Index
+        this.currentWeapon = index;
+        const newWeapon = this.weapons[this.currentWeapon].model;
+        newWeapon.visible = true;
+
+        // 3. Trigger the Draw Animation
+        this.playDrawAnimation(newWeapon);
+    }
+
+    playDrawAnimation(gun) {
+        // Define the resting position (where the gun usually sits)
+        const restingPos = this.player.gunBasePos[this.currentWeapon];
+
+        if (this.weapons[this.currentWeapon].type === "knife") {
+            gsap.to(gun.rotation, { y: Math.PI * 2, duration: 0.5, ease: "power2.inOut" });
+            gsap.to(gun.position, { y: restingPos.y, duration: 0.4, ease: "back.out(2)" });
+            return
+        }
+        
+        // Set starting position (Below the screen and tilted)
+        gun.position.set(restingPos.x, restingPos.y - 1.0, restingPos.z);
+        gun.rotation.set(Math.PI / 2, 0, 0); // Tilted back
+
+        // GSAP Animation
+        const tl = gsap.timeline();
+
+        tl.to(gun.position, {
+            x: restingPos.x,
+            y: restingPos.y,
+            z: restingPos.z,
+            duration: 0.6,
+            ease: "back.out(1.5)" // Gives it that "pop" or "bounce" effect
+        });
+
+        tl.to(gun.rotation, {
+            x: 0,
+            y: 0,
+            z: 0,
+            duration: 0.5,
+            ease: "power2.out"
+        }, "-=0.4"); // Start rotation slightly after movement
+    }
+
+    shoot(gun, charBody, onRecoil, currentVelocity, weaponType = "gun") {
         if (!gun || this.isReloading) return;
+
+        if (weaponType === "knife") {
+            this.swingKnife(gun, charBody)
+            return
+        }
+
         if (this.ammoLeft <= 0) return
         const now = performance.now();
         if (now - this.lastShotTime < this.fireRate) return;
@@ -154,8 +391,9 @@ export class WeaponSystem {
 
         // Visuals
         const muzzlePos = this.getMuzzleWorldPosition(gun);
-        this.createMuzzleFlash(gun);
-        this.createBulletTracer(muzzlePos, targetPoint);
+        //this.createMuzzleFlash(gun);
+        this.createJaggedFlash(gun);
+        this.createBulletTracer(muzzlePos, targetPoint, currentVelocity);
     }
 
     showHitmarker() {
@@ -170,8 +408,9 @@ export class WeaponSystem {
         );
     }
 
-    reload(gun, restingPos, camera) {
+    reload(gun, restingPos, camera, weaponType = "gun") {
         if (this.isReloading || !gun) return;
+        if (this.ammoLeft === this.fullAmmo) return
         this.isReloading = true;
         this.shotCount = 0;
 
@@ -212,29 +451,38 @@ export class WeaponSystem {
     }
 
     createMuzzleFlash(gun) {
-        const muzzlePos = this.getMuzzleWorldPosition(gun);
-        this.muzzleLight.position.copy(muzzlePos);
+        // 1. Position the light and its target relative to the gun
+        // Place the light source at the muzzle
+        this.muzzleLight.position.set(0, 0.08, -0.45); 
+        // Place the target further down the barrel (forward)
+        this.muzzleLightTarget.position.set(0, 0.08, -2.0); 
+
+        // 2. Parent the light and target to the gun so they move/rotate with it
+        gun.add(this.muzzleLight);
+        gun.add(this.muzzleLightTarget);
+
         this.muzzleLight.visible = true;
 
+        // 3. Create the Sprite (Visual Flash)
         const spriteMaterial = new THREE.SpriteMaterial({ 
             map: this.muzzleFlashTexture, 
             blending: THREE.AdditiveBlending,
-            transparent: true
+            transparent: true,
+            opacity: 0.7,
+            depthWrite: false
         });
         const sprite = new THREE.Sprite(spriteMaterial);
         
         gun.add(sprite); 
-
-        sprite.position.set(0, 0.08, -0.44); 
+        sprite.position.set(0, 0.08, -0.5); 
         sprite.scale.set(0.4, 0.4, 0.4);
-        
-        sprite.material.rotation = Math.random() * Math.PI;
 
+        // 4. Quick Cleanup
         setTimeout(() => { 
             this.muzzleLight.visible = false; 
             gun.remove(sprite);
             spriteMaterial.dispose();
-        }, 45);
+        }, 35);
     }
 
     getMuzzleWorldPosition(gun) {
@@ -248,7 +496,8 @@ export class WeaponSystem {
         const material = new THREE.MeshBasicMaterial({ 
             color: 0x000000, 
             transparent: true, 
-            opacity: 0.9 
+            opacity: 0.9,
+            side: THREE.DoubleSide
         });
         const dot = new THREE.Mesh(geometry, material);
 
@@ -268,11 +517,11 @@ export class WeaponSystem {
         });
     }
 
-    createBulletTracer(start, end) {
+    createBulletTracer(start, end, playerVelocity) {
         const travelDistance = start.distanceTo(end);
         if (travelDistance < 0.1) return;
 
-        const tracerLength = 3.0; 
+        const tracerLength = 2.0; 
         const geometry = new THREE.CylinderGeometry(0.005, 0.02, tracerLength, 8);
         const material = new THREE.MeshStandardMaterial({ 
             color: 0xffffff,
@@ -283,20 +532,36 @@ export class WeaponSystem {
         });
 
         const tracer = new THREE.Mesh(geometry, material);
-        tracer.position.copy(start);
-        const direction = new THREE.Vector3().subVectors(end, start).normalize();
+        
+        // We clones these so the animation doesn't mutate the original muzzle/target vectors
+        const currentStart = start.clone();
+        const currentEnd = end.clone();
+        
+        tracer.position.copy(currentStart);
+        const direction = new THREE.Vector3().subVectors(currentEnd, currentStart).normalize();
         const axis = new THREE.Vector3(0, 1, 0); 
         tracer.quaternion.setFromUnitVectors(axis, direction);
         tracer.translateY(tracerLength / 2);
         this.scene.add(tracer);
 
-        const bulletSpeed = 200; 
+        const bulletSpeed = 300; 
         let distanceCovered = 0;
         let lastTime = performance.now();
+
+        // Convert player velocity to a Three.js Vector3
+        const pVel = new THREE.Vector3(playerVelocity.x, playerVelocity.y, playerVelocity.z);
 
         const animate = (currentTime) => {
             const deltaTime = (currentTime - lastTime) / 1000;
             lastTime = currentTime;
+
+            // --- THE VELOCITY FIX ---
+            // Every frame, we move the start and end points of the path 
+            // by the same amount the player moved.
+            const frameMovement = pVel.clone().multiplyScalar(deltaTime);
+            currentStart.add(frameMovement);
+            currentEnd.add(frameMovement);
+
             distanceCovered += bulletSpeed * deltaTime;
             const progress = distanceCovered / travelDistance;
 
@@ -307,11 +572,17 @@ export class WeaponSystem {
                 return; 
             }
 
-            const currentPos = new THREE.Vector3().lerpVectors(start, end, progress);
+            // Lerp between the "moving" start and end points
+            const currentPos = new THREE.Vector3().lerpVectors(currentStart, currentEnd, progress);
             tracer.position.copy(currentPos);
+
             if (progress > 0.8) material.opacity = 1 - ((progress - 0.8) / 0.2);
             requestAnimationFrame(animate);
         };
         requestAnimationFrame(animate);
+    }
+
+    update() {
+        this.currentWeapon = this.player.currentWeapon
     }
 }

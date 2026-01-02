@@ -43,7 +43,6 @@ const map = new Map(scene, world)
 const player = new Player(camera, scene, world )
 
 
-
 //Game Loop
 const clock = new THREE.Clock()
 
@@ -54,9 +53,9 @@ function gameLoop() {
         gameActive = false 
     }
     const delta = clock.getDelta()
-    player.update(delta, gameActive)
     world.timestep = 1/60
     world.step()
+    player.update(delta, gameActive)
     renderer.render( scene, camera)
     stats.end()
 }
