@@ -41,8 +41,10 @@ export class WeaponSystem {
 
         // Fixed Recoil Pattern (The path the gun kicks)
         this.recoilPattern = [
-            { x: 0.00, y: 0.00 }, { x: 0.00, y: 0.01 },
-            { x: 0.00, y: 0.02 }, { x: 0.01, y: 0.03 },
+            { x: 0.00, y: 0.00 }, 
+            { x: 0.00, y: 0.01 },
+            { x: 0.00, y: 0.02 }, 
+            { x: 0.00, y: 0.03 },
             { x: -0.01, y: 0.04 }
         ];
     }
